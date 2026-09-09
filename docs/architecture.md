@@ -18,7 +18,7 @@ The worker processes `system_probe` and `spotify_playlist_import` jobs. Import j
 
 ## First music integration
 
-Spotify account connection is implemented; see [the Spotify guide](spotify.md) for its configuration, endpoints, tests, and current session model. The flow uses PKCE, single-use state, HttpOnly session cookies, AES-GCM credential encryption, and serialized refreshes. Real account authorization still requires developer-app configuration and browser consent. Pending OAuth flows currently require one API instance.
+Spotify account connection and Apple Music connection are implemented; see [the Spotify and Apple guide](spotify.md) for configuration, endpoints, tests, and current session models. Spotify uses PKCE and refreshable OAuth credentials. Apple uses MusicKit user tokens plus server-signed ES256 developer JWTs. Both providers use HttpOnly browser sessions and AES-GCM credential encryption. Real authorization still requires provider developer-app configuration and user consent.
 
 Choose two services and verify the operations available to the app's actual credentials. Build provider packages around these verified capabilities. Authentication flows and supported playlist mutations may differ by service.
 

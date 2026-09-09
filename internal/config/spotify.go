@@ -8,6 +8,14 @@ import (
 	"os"
 )
 
+func LoadTokenEncryptionKey() ([]byte, error) {
+	key, err := base64.StdEncoding.DecodeString(os.Getenv("TOKEN_ENCRYPTION_KEY"))
+	if err != nil || len(key) != 32 {
+		return nil, errors.New("TOKEN_ENCRYPTION_KEY must be base64 encoding of exactly 32 random bytes")
+	}
+	return key, nil
+}
+
 type Spotify struct {
 	ClientID      string
 	RedirectURI   string
@@ -32,9 +40,9 @@ func LoadSpotify() (Spotify, error) {
 	}
 	// Require a separate 256-bit key, supplied through the environment. There is
 	// no hardcoded fallback: losing this key means users must reconnect.
-	c.EncryptionKey, err = base64.StdEncoding.DecodeString(os.Getenv("TOKEN_ENCRYPTION_KEY"))
-	if err != nil || len(c.EncryptionKey) != 32 {
-		return c, errors.New("TOKEN_ENCRYPTION_KEY must be base64 encoding of exactly 32 random bytes")
+	c.EncryptionKey, err = LoadTokenEncryptionKey()
+	if err != nil {
+		return c, err
 	}
 	return c, nil
 }

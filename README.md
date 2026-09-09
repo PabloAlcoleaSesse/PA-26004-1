@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Go backend with an HTTP API, River worker, PostgreSQL migrations, and an optional Spotify connection. Spotify OAuth, encrypted credentials, playlist pagination, and ordered snapshot imports are implemented. Cross-service matching, synchronization, and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) to configure the connection.
+Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify OAuth, encrypted credentials, playlist pagination, and ordered snapshot imports are implemented. Cross-service matching, synchronization, and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
 
 ## Vision
 
@@ -24,6 +24,7 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [x] Establish the Go, PostgreSQL, and River application foundation.
 - [ ] Design a shared music-library model around the first two integrations.
 - [x] Implement Spotify account connection with encrypted credentials.
+- [x] Add Apple Music connection and playlist listing through MusicKit user tokens.
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.
 - [x] Import Spotify playlist metadata and ordered snapshots.
 - [ ] Match tracks across services and preview a playlist transfer.
@@ -91,6 +92,10 @@ GitHub Actions runs the Go checks on pushes and pull requests. The container smo
 | `SPOTIFY_CLIENT_ID` | Unset (disabled) | Enable Spotify OAuth using this app's client ID |
 | `SPOTIFY_REDIRECT_URI` | Required when enabled | Registered callback URL |
 | `TOKEN_ENCRYPTION_KEY` | Required when enabled | Base64-encoded 32-byte credential encryption key |
+| `APPLE_TEAM_ID` | Unset (disabled) | Apple Developer Team ID |
+| `APPLE_KEY_ID` | Required when enabled | Apple MusicKit key ID |
+| `APPLE_PRIVATE_KEY` | Required when enabled | PKCS#8 ES256 private key PEM |
+| `PUBLIC_ORIGIN` | `http://127.0.0.1:8080` | Origin allowed for Apple Music mutations |
 
 `GET /healthz` reports whether the HTTP process is alive. `GET /readyz` checks database connectivity and access to the River and Spotify tables, returning `503` when unavailable. Neither endpoint establishes that the separate worker is running; use the probe command for that.
 

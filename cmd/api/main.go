@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/applemusic"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/httpapi"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
@@ -72,6 +73,30 @@ func run(logger *slog.Logger) error {
 		logger.Info("Spotify connection enabled")
 	} else {
 		logger.Info("Spotify connection disabled; set SPOTIFY_CLIENT_ID to enable")
+	}
+	appleConfig, err := config.LoadAppleMusic()
+	if err != nil {
+		return err
+	}
+	if appleConfig.TeamID != "" {
+		key, err := config.LoadTokenEncryptionKey()
+		if err != nil {
+			return err
+		}
+		store, err := applemusic.NewPostgresStore(pool, key)
+		if err != nil {
+			return err
+		}
+		client, err := applemusic.NewClient(appleConfig.TeamID, appleConfig.KeyID, appleConfig.PrivateKeyPEM)
+		if err != nil {
+			return err
+		}
+		origin := os.Getenv("PUBLIC_ORIGIN")
+		if origin == "" {
+			origin = "http://" + cfg.HTTPAddr
+		}
+		client.Register(mux, store, origin)
+		logger.Info("Apple Music connection enabled")
 	}
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 1)
