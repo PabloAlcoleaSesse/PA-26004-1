@@ -13,6 +13,7 @@ import (
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/httpapi"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
 )
 
 func main() {
@@ -29,6 +30,10 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	spotifyConfig, err := config.LoadSpotify()
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	pool, err := platform.OpenDatabase(ctx, cfg.DatabaseURL)
@@ -37,11 +42,27 @@ func run(logger *slog.Logger) error {
 	}
 	defer pool.Close()
 	ready := func(ctx context.Context) error {
-		// Check the queue schema as well as connectivity.
+		// Check both schemas before accepting traffic on a migrated deployment.
 		_, err := pool.Exec(ctx, "SELECT id FROM river_job LIMIT 0")
+		if err == nil {
+			_, err = pool.Exec(ctx, "SELECT session_hash FROM spotify_connections LIMIT 0")
+		}
 		return err
 	}
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.NewHandler(ready), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	mux := http.NewServeMux()
+	mux.Handle("/", httpapi.NewHandler(ready))
+	if spotifyConfig.ClientID != "" {
+		store, err := spotify.NewPostgresStore(pool, spotifyConfig.EncryptionKey)
+		if err != nil {
+			return err
+		}
+		client := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
+		spotify.NewAuth(client, store).Register(mux)
+		logger.Info("Spotify connection enabled")
+	} else {
+		logger.Info("Spotify connection disabled; set SPOTIFY_CLIENT_ID to enable")
+	}
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 1)
 	go func() { errs <- server.ListenAndServe() }()
 	logger.Info("api starting", "address", cfg.HTTPAddr)

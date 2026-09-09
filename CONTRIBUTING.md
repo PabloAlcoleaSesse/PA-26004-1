@@ -14,4 +14,4 @@ For pull requests:
 
 Use Go's standard formatting (`make fmt`), keep packages focused, and pass contexts through database and network operations. Keep provider-specific behavior out of shared transfer logic.
 
-Run `make check` before submitting changes. For database, worker, or container changes, also start the Compose stack and run the probe described in the README. Add tests for behavior and failure cases introduced by your change. CI repeats the checks and the container smoke test.
+Run `make check` before submitting changes. For database changes, use `TEST_DATABASE_URL` to run the isolated PostgreSQL integration tests described in the Spotify guide. Container smoke tests are optional and run only when explicitly requested; CI exposes a manual option. Add tests for behavior and failure cases introduced by your change. Never use real Spotify credentials in fixtures or logs.

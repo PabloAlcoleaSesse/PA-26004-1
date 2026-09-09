@@ -8,7 +8,7 @@ One Go module contains three executable commands:
 - `cmd/worker`: River job processing with bounded concurrency and graceful draining.
 - `cmd/admin`: explicit `migrate` and diagnostic `probe` commands.
 
-Shared code lives in `internal/config`, `internal/platform`, `internal/httpapi`, and `internal/jobs`. PostgreSQL stores River's queue and migration history. Application tables will be introduced alongside real domain behavior.
+Shared code lives in `internal/config`, `internal/platform`, `internal/httpapi`, and `internal/jobs`. The `internal/spotify` package owns OAuth, provider requests, and browser connection storage. PostgreSQL stores River's queue, migration history, and encrypted Spotify connections. Application migrations are embedded, checksummed, and applied under a transaction-scoped advisory lock.
 
 The API and worker run as separate processes from the same container image. The image runs as a non-root user and includes CA certificates for future HTTPS integrations. Local Compose supplies PostgreSQL and runs migrations before starting either process. In other environments, run `admin migrate` as a single deployment step before starting application processes.
 
@@ -17,6 +17,8 @@ River's programmatic migrator uses the version pinned in `go.mod`; it is not dow
 The worker currently processes only `system_probe` jobs. Probe completion proves that a job was persisted, picked up, and acknowledged. No endpoint accepts public sync requests yet.
 
 ## First music integration
+
+Spotify account connection is implemented; see [the Spotify guide](spotify.md) for its configuration, endpoints, tests, and current session model. The flow uses PKCE, single-use state, HttpOnly session cookies, AES-GCM credential encryption, and serialized refreshes. Real account authorization still requires developer-app configuration and browser consent. Pending OAuth flows currently require one API instance.
 
 Choose two services and verify the operations available to the app's actual credentials. Build provider packages around these verified capabilities. Authentication flows and supported playlist mutations may differ by service.
 
@@ -40,7 +42,7 @@ Begin with one-way synchronization and an explicit source of truth. Add bidirect
 
 ## Deployment boundary
 
-This is a development foundation. Before accepting real users, implement application authentication and authorization, managed secrets and credential encryption, TLS termination, database backups, and monitoring. JSON application logs and River logs exist today; metrics and distributed tracing are future work. The public repository does not imply public access has been approved by any music provider.
+This is a development foundation with Spotify browser sessions and encrypted credentials. Before unattended multi-provider sync, introduce a persistent application-user model and account-linking authorization. Deployment also needs managed secrets/key rotation, TLS termination, database backups, abuse controls, and monitoring. JSON application logs and River logs exist today; metrics and distributed tracing are future work. The public repository does not imply public access has been approved by any music provider.
 
 ## References
 

@@ -51,6 +51,9 @@ func run(logger *slog.Logger) error {
 		if _, err := migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
 			return err
 		}
+		if err := platform.MigrateApp(ctx, pool); err != nil {
+			return err
+		}
 		logger.Info("database migrations applied")
 		return nil
 	}

@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Backend foundation implemented in Go: an HTTP API, a River background worker, PostgreSQL migrations, and a local container environment. Music-service integrations, user authentication, and playlist synchronization are not implemented yet.
+Go backend with an HTTP API, River worker, PostgreSQL migrations, and an optional Spotify account connection. Spotify OAuth, browser sessions, encrypted token storage, and refresh handling are implemented. Playlist import, synchronization, and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) to configure and authorize your account.
 
 ## Vision
 
@@ -23,7 +23,9 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [ ] Define the first two music services and investigate integration capabilities.
 - [x] Establish the Go, PostgreSQL, and River application foundation.
 - [ ] Design a shared music-library model around the first two integrations.
-- [ ] Connect an account and import playlist metadata.
+- [x] Implement Spotify account connection with encrypted credentials.
+- [ ] Verify a live Spotify connection with developer-app credentials and consent.
+- [ ] Import playlist metadata.
 - [ ] Match tracks across services and preview a playlist transfer.
 - [ ] Execute transfers and report successful, missing, and ambiguous matches.
 - [ ] Add opt-in playlist synchronization with conflict handling.
@@ -56,14 +58,12 @@ Stopping the stack preserves the database volume. The credentials in Compose are
 
 ### Run Go processes locally
 
-Requires Go 1.26.6 or newer and PostgreSQL 17 (or the supplied database container). Copy and load the example configuration in each terminal:
+Requires Go 1.26.6 or newer and an available PostgreSQL instance (16 or 17). Copy `.env.example` to `.env` if it does not exist, then set `DATABASE_URL` for your database. Load configuration in each terminal:
 
 ```sh
-cp .env.example .env
 set -a
 . ./.env
 set +a
-docker compose up -d db
 make migrate
 make api
 ```
@@ -76,7 +76,9 @@ In another terminal, load `.env` as above and run `make worker`. In a third term
 make check
 ```
 
-Checks formatting, runs `go vet`, runs tests with the race detector, and builds `bin/api`, `bin/worker`, and `bin/admin`. GitHub Actions also builds the containers and exercises health checks, queue delivery, and repeatable migrations against PostgreSQL.
+Checks formatting, runs `go vet`, runs tests with the race detector, and builds `bin/api`, `bin/worker`, and `bin/admin`. These checks use a simulated Spotify server and do not start containers or contact Spotify. PostgreSQL integration tests are opt-in through `TEST_DATABASE_URL`; see [verification](docs/spotify.md#verification).
+
+GitHub Actions runs the Go checks on pushes and pull requests. The container smoke test runs only when manually dispatching CI with `container_smoke` enabled.
 
 ### Configuration
 
@@ -86,8 +88,11 @@ Checks formatting, runs `go vet`, runs tests with the race detector, and builds 
 | `HTTP_ADDR` | `127.0.0.1:8080` | API listen address |
 | `LOG_LEVEL` | `info` | JSON log verbosity: debug, info, warn, error |
 | `WORKER_CONCURRENCY` | `4` | Concurrent jobs per worker process, from 1 to 100 |
+| `SPOTIFY_CLIENT_ID` | Unset (disabled) | Enable Spotify OAuth using this app's client ID |
+| `SPOTIFY_REDIRECT_URI` | Required when enabled | Registered callback URL |
+| `TOKEN_ENCRYPTION_KEY` | Required when enabled | Base64-encoded 32-byte credential encryption key |
 
-`GET /healthz` reports whether the HTTP process is alive. `GET /readyz` checks database connectivity and access to the River jobs table, returning `503` when unavailable. Neither endpoint establishes that the separate worker is running; use the probe command for that.
+`GET /healthz` reports whether the HTTP process is alive. `GET /readyz` checks database connectivity and access to the River and Spotify tables, returning `503` when unavailable. Neither endpoint establishes that the separate worker is running; use the probe command for that.
 
 See [the architecture notes](docs/architecture.md) for module boundaries and the next implementation steps.
 
