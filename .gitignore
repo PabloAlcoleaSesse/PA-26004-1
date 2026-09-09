@@ -10,6 +10,7 @@ token.json
 tokens.json
 
 # Dependencies and build output
+bin/
 node_modules/
 dist/
 build/

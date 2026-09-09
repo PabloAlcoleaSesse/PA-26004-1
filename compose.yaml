@@ -1,0 +1,58 @@
+name: pa-26004-1
+
+x-app: &app
+  image: pa-26004-1:local
+  build: .
+  environment:
+    DATABASE_URL: postgres://music:music@db:5432/music?sslmode=disable
+    HTTP_ADDR: 0.0.0.0:8080
+    LOG_LEVEL: info
+    WORKER_CONCURRENCY: "4"
+  stop_grace_period: 40s
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: music
+      POSTGRES_PASSWORD: music
+      POSTGRES_DB: music
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U music -d music"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *app
+    command: ["/app/admin", "migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *app
+    command: ["/app/worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:

@@ -1,0 +1,13 @@
+.git
+.github
+.env
+.env.*
+bin
+.cache
+coverage*
+*.log
+*.pem
+*.key
+credentials.json
+token.json
+tokens.json
