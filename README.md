@@ -1,6 +1,14 @@
-# PA-26004-1
-
-A platform to keep your music library connected across music services.
+<div align="center">
+  <h1>🎧 Music Library Bridge</h1>
+  <p><strong>A backend platform to keep your music library connected across services.</strong></p>
+  <p>
+    <img alt="Go" src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white">
+    <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16%2F17-4169E1?style=for-the-badge&logo=postgresql&logoColor=white">
+    <img alt="River" src="https://img.shields.io/badge/River-Workers-1F2937?style=for-the-badge">
+    <img alt="Spotify" src="https://img.shields.io/badge/Spotify-Connected-1DB954?style=for-the-badge&logo=spotify&logoColor=white">
+    <img alt="Apple Music" src="https://img.shields.io/badge/Apple%20Music-Connected-FA243C?style=for-the-badge&logo=applemusic&logoColor=white">
+  </p>
+</div>
 
 Save your collection, transfer playlists between services, and keep them in sync. Over time, explore your music taste through statistics and discover recommendations based on how music sounds.
 
@@ -18,20 +26,38 @@ Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional S
 
 Transfers refer to recreating library entries and playlists in a destination service. Service support and available features will depend on each integration's capabilities.
 
-## Roadmap
+## Feature work
 
-- [ ] Define the first two music services and investigate integration capabilities.
-- [x] Establish the Go, PostgreSQL, and River application foundation.
-- [ ] Design a shared music-library model around the first two integrations.
-- [x] Implement Spotify account connection with encrypted credentials.
-- [x] Add Apple Music connection and playlist listing through MusicKit user tokens.
-- [ ] Verify a live Spotify connection with developer-app credentials and consent.
-- [x] Import Spotify playlist metadata and ordered snapshots.
-- [ ] Match tracks across services and preview a playlist transfer.
-- [ ] Execute transfers and report successful, missing, and ambiguous matches.
-- [ ] Add opt-in playlist synchronization with conflict handling.
-- [ ] Add music-taste statistics using available data.
-- [ ] Explore sound-based recommendations and evaluate their quality.
+| Area | Status | Work |
+| --- | --- | --- |
+| Platform foundation | ✅ Done | Go API, PostgreSQL migrations, River worker baseline |
+| Spotify integration | ✅ Done | OAuth PKCE, encrypted credentials, playlist pagination, ordered snapshot imports |
+| Apple Music integration | ✅ Done | MusicKit user-token connection and playlist listing |
+| Shared library model | 🟡 In progress | Provider-neutral representation for cross-service transfer |
+| Transfer matching | ⏳ Planned | Deterministic matching with confidence classification |
+| Transfer preview | ⏳ Planned | Preview endpoint and persisted proposal before destination writes |
+| Destination writes | ⏳ Planned | Provider-abstracted search/create/add pipeline with queue-backed execution |
+| Playlist sync | ⏳ Planned | Opt-in synchronization with conflict handling |
+| Taste insights | ⏳ Planned | Library statistics and sound-based recommendations |
+
+## Toolbox
+
+| Layer | Stack |
+| --- | --- |
+| API & jobs | Go, River workers, context-aware retries |
+| Data | PostgreSQL, forward-only SQL migrations |
+| Integrations | Spotify Web API, Apple MusicKit |
+| Security | Encrypted provider credentials, OAuth PKCE, CSRF and session protections |
+| Quality | gofmt, go vet, race-enabled tests, CI checks |
+
+## Setup
+
+Choose one setup path:
+
+1. **Docker setup (fastest):** run API, worker, and PostgreSQL together with Compose.
+2. **Local Go setup:** run API and worker directly with your own PostgreSQL instance.
+
+For both options, copy `.env.example` to `.env` and set required provider/database variables before running commands.
 
 ## Development
 
