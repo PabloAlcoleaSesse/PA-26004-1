@@ -1,4 +1,4 @@
-# Music Bridge
+# PA-26004-1
 
 A platform to keep your music library connected across music services.
 
@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Early planning. This repository establishes the project; there is no application or service integration yet. The working name is **Music Bridge**.
+Early planning. This repository establishes the project; there is no application or service integration yet.
 
 ## Vision
 
