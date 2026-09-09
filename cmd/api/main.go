@@ -16,6 +16,8 @@ import (
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/transfer"
+	"github.com/riverqueue/river"
 )
 
 func main() {
@@ -36,6 +38,10 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	appleConfig, err := config.LoadAppleMusic()
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	pool, err := platform.OpenDatabase(ctx, cfg.DatabaseURL)
@@ -44,39 +50,46 @@ func run(logger *slog.Logger) error {
 	}
 	defer pool.Close()
 	ready := func(ctx context.Context) error {
-		// Check both schemas before accepting traffic on a migrated deployment.
-		_, err := pool.Exec(ctx, "SELECT id FROM river_job LIMIT 0")
-		if err == nil {
-			_, err = pool.Exec(ctx, "SELECT session_hash FROM spotify_connections LIMIT 0")
+		for _, query := range []string{
+			"SELECT id FROM river_job LIMIT 0",
+			"SELECT session_hash FROM spotify_connections LIMIT 0",
+			"SELECT import_id FROM spotify_snapshots LIMIT 0",
+			"SELECT id FROM transfer_previews LIMIT 0",
+		} {
+			if _, err := pool.Exec(ctx, query); err != nil {
+				return err
+			}
 		}
-		if err == nil {
-			_, err = pool.Exec(ctx, "SELECT import_id FROM spotify_snapshots LIMIT 0")
-		}
-		return err
+		return nil
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.NewHandler(ready))
+
+	origin := os.Getenv("PUBLIC_ORIGIN")
+	if origin == "" {
+		origin = "http://" + cfg.HTTPAddr
+	}
+
+	var register []func(*river.Workers)
+	var spotifyAuth *spotify.Auth
+	var spotifyImporter *spotify.Importer
+	var transferService *transfer.Service
+	transferProviders := []transfer.Provider{}
+
 	if spotifyConfig.ClientID != "" {
 		store, err := spotify.NewPostgresStore(pool, spotifyConfig.EncryptionKey)
 		if err != nil {
 			return err
 		}
 		client := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
-		importer := spotify.NewImporter(pool, store, client)
-		queue, err := jobs.NewClient(pool, logger, 0, importer.Register)
-		if err != nil {
-			return err
-		}
-		auth := spotify.NewAuth(client, store)
-		auth.Register(mux)
-		auth.RegisterImports(mux, importer, queue)
+		spotifyImporter = spotify.NewImporter(pool, store, client)
+		spotifyAuth = spotify.NewAuth(client, store)
+		spotifyAuth.Register(mux)
+		register = append(register, spotifyImporter.Register)
+		transferProviders = append(transferProviders, transfer.NewSpotifyProvider(client, store))
 		logger.Info("Spotify connection enabled")
 	} else {
 		logger.Info("Spotify connection disabled; set SPOTIFY_CLIENT_ID to enable")
-	}
-	appleConfig, err := config.LoadAppleMusic()
-	if err != nil {
-		return err
 	}
 	if appleConfig.TeamID != "" {
 		key, err := config.LoadTokenEncryptionKey()
@@ -91,13 +104,26 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return err
 		}
-		origin := os.Getenv("PUBLIC_ORIGIN")
-		if origin == "" {
-			origin = "http://" + cfg.HTTPAddr
-		}
 		client.Register(mux, store, origin)
+		transferProviders = append(transferProviders, transfer.NewAppleMusicProvider(client, store))
 		logger.Info("Apple Music connection enabled")
 	}
+
+	if spotifyImporter != nil {
+		if len(transferProviders) > 0 {
+			transferService = transfer.NewService(transfer.NewStore(pool), transferProviders...)
+			register = append(register, transferService.Register)
+		}
+		queue, err := jobs.NewClient(pool, logger, 0, register...)
+		if err != nil {
+			return err
+		}
+		spotifyAuth.RegisterImports(mux, spotifyImporter, queue)
+		if transferService != nil {
+			transfer.RegisterHTTP(mux, transferService, queue, origin)
+		}
+	}
+
 	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 1)
 	go func() { errs <- server.ListenAndServe() }()

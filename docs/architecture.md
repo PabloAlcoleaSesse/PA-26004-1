@@ -14,7 +14,7 @@ The API and worker run as separate processes from the same container image. The 
 
 River's programmatic migrator uses the version pinned in `go.mod`; it is not downloaded independently at runtime. Migrations are forward-only through the supplied command. Backups and rollback procedures must be established for deployed environments before changing persistent application data.
 
-The worker processes `system_probe` and `spotify_playlist_import` jobs. Import jobs carry only an opaque import ID; credentials stay in encrypted PostgreSQL rows. A completed import is an immutable, ordered snapshot. No cross-service transfer or public sync endpoint exists yet.
+The worker processes `system_probe`, `spotify_playlist_import`, and `transfer_run` jobs. Import and transfer jobs carry only opaque IDs; credentials stay in encrypted PostgreSQL rows. A completed Spotify import is an immutable, ordered snapshot. Transfer previews are persisted before any destination write is attempted, with each source entry classified as matched, ambiguous, missing, or unsupported.
 
 ## First music integration
 
@@ -29,6 +29,8 @@ The first vertical slice should:
 3. Match destination recordings using available identifiers and metadata, recording confidence and manual decisions.
 4. Preview a transfer, including unmatched tracks and version differences.
 5. Create a destination playlist, persist progress, and reconcile interrupted operations before retrying.
+
+The current implementation exposes `/api/transfers/previews` and `/api/transfers/previews/{id}` to create/read previews from Spotify snapshots. Transfer execution is queued through `/api/transfers/previews/{id}/runs`; unsupported destination playlist writes remain explicit and are returned as controlled run failures.
 
 Keep matching and transfer planning independent of provider HTTP clients so their rules can be tested with fixtures. Introduce shared track and playlist types as the first integrations reveal the required fields.
 
