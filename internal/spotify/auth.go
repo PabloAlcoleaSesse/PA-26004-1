@@ -151,37 +151,13 @@ func (a *Auth) connection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var profile Profile
-	var providerErr error
-	err = a.store.Update(r.Context(), sessionHash(cookie.Value), func(connection *Connection) error {
-		// Refresh early to avoid expiry during the next provider request.
-		refreshed := false
-		if !connection.Tokens.ExpiresAt.After(time.Now().Add(time.Minute)) {
-			tokens, err := a.client.Refresh(r.Context(), connection.Tokens)
-			if err != nil {
-				return err
-			}
-			connection.Tokens = tokens
-			refreshed = true
-		}
+	err = a.client.withConnection(r.Context(), a.store, sessionHash(cookie.Value), func(connection *Connection) error {
 		p, err := a.client.Profile(r.Context(), connection.Tokens.AccessToken)
-		var upstream *ProviderError
-		if !refreshed && errors.As(err, &upstream) && upstream.Status == http.StatusUnauthorized {
-			tokens, refreshErr := a.client.Refresh(r.Context(), connection.Tokens)
-			if refreshErr != nil {
-				return refreshErr
-			}
-			connection.Tokens = tokens
-			p, err = a.client.Profile(r.Context(), tokens.AccessToken)
-		}
-		// Commit rotated credentials even when the subsequent profile request
-		// fails. Rolling them back could lose the only valid refresh token.
 		if err != nil {
-			providerErr = err
-			return nil
+			return err
 		}
 		if p.AccountID != connection.Profile.AccountID {
-			providerErr = errors.New("Spotify account identity changed")
-			return nil
+			return errors.New("Spotify account identity changed")
 		}
 		connection.Profile = p
 		profile = p
@@ -189,10 +165,6 @@ func (a *Auth) connection(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		a.failure(w, err)
-		return
-	}
-	if providerErr != nil {
-		a.failure(w, providerErr)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

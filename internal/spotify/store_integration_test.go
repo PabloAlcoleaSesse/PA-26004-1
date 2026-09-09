@@ -1,10 +1,7 @@
 package spotify
 
 import (
-	"context"
-	"crypto/rand"
 	"errors"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -12,40 +9,12 @@ import (
 	"time"
 
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // This opt-in test uses a unique schema and removes only that schema afterward.
 // TEST_DATABASE_URL must point to a development/test database, never production.
 func TestPostgresConnectionStore(t *testing.T) {
-	databaseURL := os.Getenv("TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("set TEST_DATABASE_URL to run PostgreSQL integration tests")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	admin, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer admin.Close()
-	schema := "spotify_test_" + strings.ToLower(rand.Text())
-	quoted := pgx.Identifier{schema}.Sanitize()
-	if _, err := admin.Exec(ctx, "CREATE SCHEMA "+quoted); err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _, _ = admin.Exec(context.Background(), "DROP SCHEMA "+quoted+" CASCADE") }()
-	cfg, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cfg.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, err := pgxpool.NewWithConfig(ctx, cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pool.Close()
+	ctx, pool := testPostgres(t)
 	// Applying twice verifies migration tracking rather than IF NOT EXISTS alone.
 	for range 2 {
 		if err := platform.MigrateApp(ctx, pool); err != nil {

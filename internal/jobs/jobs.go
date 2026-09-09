@@ -27,9 +27,12 @@ func (w *probeWorker) Work(ctx context.Context, job *river.Job[ProbeArgs]) error
 }
 
 // NewClient with concurrency zero creates an insert-only client.
-func NewClient(pool *pgxpool.Pool, logger *slog.Logger, concurrency int) (*river.Client[pgx.Tx], error) {
+func NewClient(pool *pgxpool.Pool, logger *slog.Logger, concurrency int, register ...func(*river.Workers)) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &probeWorker{logger: logger})
+	for _, add := range register {
+		add(workers)
+	}
 	cfg := &river.Config{Logger: logger, Workers: workers, JobTimeout: time.Minute, MaxAttempts: 5}
 	if concurrency > 0 {
 		cfg.Queues = map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: concurrency}}

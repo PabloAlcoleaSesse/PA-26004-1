@@ -47,6 +47,7 @@ type Client struct {
 	authorizeURL string
 	tokenURL     string
 	profileURL   string
+	apiURL       string
 	http         *http.Client
 }
 
@@ -56,6 +57,7 @@ func NewClient(clientID, redirectURI string) *Client {
 		authorizeURL: "https://accounts.spotify.com/authorize",
 		tokenURL:     "https://accounts.spotify.com/api/token",
 		profileURL:   "https://api.spotify.com/v1/me",
+		apiURL:       "https://api.spotify.com/v1",
 		http: &http.Client{Timeout: 5 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error {
 			// Never forward bearer tokens or authorization codes through redirects.
 			return http.ErrUseLastResponse

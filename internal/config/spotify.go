@@ -15,7 +15,7 @@ type Spotify struct {
 }
 
 // Spotify is optional: health checks and the queue work without credentials.
-// Only the API loads this config, so the worker never needs access to the key.
+// The API and import worker need the same key to read shared credentials.
 func LoadSpotify() (Spotify, error) {
 	c := Spotify{ClientID: os.Getenv("SPOTIFY_CLIENT_ID"), RedirectURI: os.Getenv("SPOTIFY_REDIRECT_URI")}
 	if c.ClientID == "" {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/httpapi"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
 )
@@ -47,6 +48,9 @@ func run(logger *slog.Logger) error {
 		if err == nil {
 			_, err = pool.Exec(ctx, "SELECT session_hash FROM spotify_connections LIMIT 0")
 		}
+		if err == nil {
+			_, err = pool.Exec(ctx, "SELECT import_id FROM spotify_snapshots LIMIT 0")
+		}
 		return err
 	}
 	mux := http.NewServeMux()
@@ -57,7 +61,14 @@ func run(logger *slog.Logger) error {
 			return err
 		}
 		client := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
-		spotify.NewAuth(client, store).Register(mux)
+		importer := spotify.NewImporter(pool, store, client)
+		queue, err := jobs.NewClient(pool, logger, 0, importer.Register)
+		if err != nil {
+			return err
+		}
+		auth := spotify.NewAuth(client, store)
+		auth.Register(mux)
+		auth.RegisterImports(mux, importer, queue)
 		logger.Info("Spotify connection enabled")
 	} else {
 		logger.Info("Spotify connection disabled; set SPOTIFY_CLIENT_ID to enable")

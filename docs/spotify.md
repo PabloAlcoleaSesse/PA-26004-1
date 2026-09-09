@@ -2,7 +2,7 @@
 
 ## What is implemented
 
-The API supports Spotify OAuth with PKCE, encrypted credential storage, automatic refresh when checking the connection, and local disconnect. It requests `playlist-read-private` and `playlist-read-collaborative` for the upcoming playlist import. Playlist reading, transfers, and scheduled sync are not implemented yet.
+The API supports Spotify OAuth with PKCE, encrypted credential storage, automatic refresh when checking the connection, and local disconnect. It requests `playlist-read-private` and `playlist-read-collaborative` for playlist import. Playlist transfers and scheduled cross-service sync are not implemented yet.
 
 Spotify authorization establishes a browser session for this first integration. There is no separate application user/login system yet. Each browser connection is independent; a second browser must authorize separately.
 
@@ -50,6 +50,8 @@ The migration command applies River migrations and the application schema. Open 
 
 The worker is not required for account connection. No access or refresh token appears in the response. You can revisit the connection endpoint in the same browser; it checks the profile against Spotify and refreshes expired credentials as needed.
 
+After connecting, list playlists with `GET /api/spotify/playlists`. Start an asynchronous import with `POST /api/spotify/playlists/{playlist_id}/imports` from the API origin. Poll the returned `status_url`; when it reports `completed`, read the ordered snapshot from `snapshot_url`. Snapshot pages retain repeated tracks and unavailable/local entries at their original positions. The import checks Spotify's `snapshot_id` before publishing, so an edit during the read fails safely instead of publishing a partial snapshot.
+
 ## Endpoints
 
 | Method | Path | Behavior |
@@ -58,6 +60,10 @@ The worker is not required for account connection. No access or refresh token ap
 | GET | `/auth/spotify/callback` | Validate state, exchange the code, store credentials, rotate the local session |
 | GET | `/api/connections/spotify` | Check the current browser's connection and return its Spotify profile |
 | DELETE | `/api/connections/spotify` | Delete this browser's stored credentials and expire its session cookie |
+| GET | `/api/spotify/playlists` | List playlists (`offset`, `limit` up to 50) |
+| POST | `/api/spotify/playlists/{playlist_id}/imports` | Enqueue an ordered playlist snapshot import |
+| GET | `/api/spotify/imports/{import_id}` | Read import status and controlled error code |
+| GET | `/api/spotify/imports/{import_id}/snapshot` | Read snapshot metadata and entries (`offset`, `limit` up to 100) |
 
 Disconnect requires the session cookie and an `Origin` header matching the redirect URI's origin. From the browser console on the API's origin:
 

@@ -14,7 +14,7 @@ The API and worker run as separate processes from the same container image. The 
 
 River's programmatic migrator uses the version pinned in `go.mod`; it is not downloaded independently at runtime. Migrations are forward-only through the supplied command. Backups and rollback procedures must be established for deployed environments before changing persistent application data.
 
-The worker currently processes only `system_probe` jobs. Probe completion proves that a job was persisted, picked up, and acknowledged. No endpoint accepts public sync requests yet.
+The worker processes `system_probe` and `spotify_playlist_import` jobs. Import jobs carry only an opaque import ID; credentials stay in encrypted PostgreSQL rows. A completed import is an immutable, ordered snapshot. No cross-service transfer or public sync endpoint exists yet.
 
 ## First music integration
 

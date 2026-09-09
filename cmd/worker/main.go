@@ -11,6 +11,8 @@ import (
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
+	"github.com/riverqueue/river"
 )
 
 func main() {
@@ -27,6 +29,10 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	spotifyConfig, err := config.LoadSpotify()
+	if err != nil {
+		return err
+	}
 	signals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	pool, err := platform.OpenDatabase(signals, cfg.DatabaseURL)
@@ -34,7 +40,17 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer pool.Close()
-	client, err := jobs.NewClient(pool, logger, cfg.WorkerConcurrency)
+	var register []func(*river.Workers)
+	if spotifyConfig.ClientID != "" {
+		store, err := spotify.NewPostgresStore(pool, spotifyConfig.EncryptionKey)
+		if err != nil {
+			return err
+		}
+		provider := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
+		importer := spotify.NewImporter(pool, store, provider)
+		register = append(register, importer.Register)
+	}
+	client, err := jobs.NewClient(pool, logger, cfg.WorkerConcurrency, register...)
 	if err != nil {
 		return err
 	}

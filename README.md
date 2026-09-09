@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Go backend with an HTTP API, River worker, PostgreSQL migrations, and an optional Spotify account connection. Spotify OAuth, browser sessions, encrypted token storage, and refresh handling are implemented. Playlist import, synchronization, and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) to configure and authorize your account.
+Go backend with an HTTP API, River worker, PostgreSQL migrations, and an optional Spotify connection. Spotify OAuth, encrypted credentials, playlist pagination, and ordered snapshot imports are implemented. Cross-service matching, synchronization, and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) to configure the connection.
 
 ## Vision
 
@@ -25,7 +25,7 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [ ] Design a shared music-library model around the first two integrations.
 - [x] Implement Spotify account connection with encrypted credentials.
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.
-- [ ] Import playlist metadata.
+- [x] Import Spotify playlist metadata and ordered snapshots.
 - [ ] Match tracks across services and preview a playlist transfer.
 - [ ] Execute transfers and report successful, missing, and ambiguous matches.
 - [ ] Add opt-in playlist synchronization with conflict handling.
