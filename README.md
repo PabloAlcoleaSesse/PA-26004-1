@@ -103,9 +103,9 @@ GitHub Actions runs the Go checks on pushes and pull requests. The container smo
 | `APPLE_PRIVATE_KEY` | Required when enabled | PKCS#8 ES256 private key PEM |
 | `PUBLIC_ORIGIN` | `http://127.0.0.1:8080` | Origin allowed for Apple Music mutations |
 
-`GET /healthz` reports whether the HTTP process is alive. `GET /readyz` checks database connectivity and access to the River and Spotify tables, returning `503` when unavailable. Neither endpoint establishes that the separate worker is running; use the probe command for that.
+`GET /healthz` reports whether the HTTP process is alive. `GET /readyz` checks database connectivity and access to the River, provider, catalog, identity, and sync tables, returning `503` when unavailable. Neither endpoint establishes that the separate worker is running; use the probe command for that.
 
-See [the architecture notes](docs/architecture.md) for module boundaries and the next implementation steps.
+See [the API contract](docs/api.md) and [the architecture notes](docs/architecture.md) for endpoint behavior, module boundaries, and implementation steps.
 
 Ideas and contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
