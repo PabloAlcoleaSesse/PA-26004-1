@@ -71,11 +71,14 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return err
 		}
+		importer := applemusic.NewImporter(pool, store, provider)
+		register = append(register, importer.Register)
 		transferProviders = append(transferProviders, transfer.NewAppleMusicProvider(provider, store))
 	}
 	if len(transferProviders) > 0 {
 		service := transfer.NewService(transfer.NewStore(pool), transferProviders...)
 		register = append(register, service.Register)
+		register = append(register, service.RegisterSync)
 	}
 	client, err := jobs.NewClient(pool, logger, cfg.WorkerConcurrency, register...)
 	if err != nil {

@@ -30,3 +30,12 @@ type PlaylistEntry struct {
 	Unavailable     bool   `json:"unavailable"`
 	Unsupported     bool   `json:"unsupported"`
 }
+
+type Stats struct {
+	Playlists   int            `json:"playlists"`
+	Entries     int            `json:"entries"`
+	Tracks      int            `json:"tracks"`
+	Unavailable int            `json:"unavailable"`
+	Unsupported int            `json:"unsupported"`
+	ByProvider  map[string]int `json:"by_provider"`
+}

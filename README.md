@@ -27,6 +27,7 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [x] Queue Apple Music playlist imports into the shared library catalog.
 - [x] Persist application users and link connected provider accounts.
 - [x] Add one-way, queued playlist synchronization with safe destination reconciliation.
+- [x] Expose session-scoped catalog coverage statistics.
 - [x] Implement Spotify account connection with encrypted credentials.
 - [x] Add Apple Music connection and playlist listing through MusicKit user tokens.
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.

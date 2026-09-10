@@ -89,3 +89,32 @@ func (s *Store) GetPlaylist(ctx context.Context, sessionHash, id string, offset,
 	}
 	return playlist, entries, rows.Err()
 }
+
+func (s *Store) Stats(ctx context.Context, sessionHash string) (Stats, error) {
+	var stats Stats
+	err := s.pool.QueryRow(ctx, `SELECT
+		(SELECT count(*) FROM library_playlists WHERE session_hash=$1),
+		(SELECT count(*) FROM library_playlist_entries e JOIN library_playlists p ON p.id=e.playlist_id WHERE p.session_hash=$1),
+		(SELECT count(DISTINCT e.track_id) FROM library_playlist_entries e JOIN library_playlists p ON p.id=e.playlist_id WHERE p.session_hash=$1 AND e.track_id IS NOT NULL),
+		(SELECT count(*) FROM library_playlist_entries e JOIN library_playlists p ON p.id=e.playlist_id WHERE p.session_hash=$1 AND e.unavailable),
+		(SELECT count(*) FROM library_playlist_entries e JOIN library_playlists p ON p.id=e.playlist_id WHERE p.session_hash=$1 AND e.unsupported)`, sessionHash).
+		Scan(&stats.Playlists, &stats.Entries, &stats.Tracks, &stats.Unavailable, &stats.Unsupported)
+	if err != nil {
+		return Stats{}, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT source_provider,count(*) FROM library_playlists WHERE session_hash=$1 GROUP BY source_provider ORDER BY source_provider`, sessionHash)
+	if err != nil {
+		return Stats{}, err
+	}
+	defer rows.Close()
+	stats.ByProvider = map[string]int{}
+	for rows.Next() {
+		var provider string
+		var count int
+		if err := rows.Scan(&provider, &count); err != nil {
+			return Stats{}, err
+		}
+		stats.ByProvider[provider] = count
+	}
+	return stats, rows.Err()
+}

@@ -12,6 +12,18 @@ import (
 const sessionCookie = "music_session"
 
 func RegisterHTTP(mux *http.ServeMux, store *Store) {
+	mux.HandleFunc("GET /api/library/stats", func(w http.ResponseWriter, r *http.Request) {
+		hash, ok := sessionHashFromRequest(w, r)
+		if !ok {
+			return
+		}
+		stats, err := store.Stats(r.Context(), hash)
+		if err != nil {
+			http.Error(w, "could not load library statistics", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, stats)
+	})
 	mux.HandleFunc("GET /api/library/playlists", func(w http.ResponseWriter, r *http.Request) {
 		hash, ok := sessionHashFromRequest(w, r)
 		if !ok {
