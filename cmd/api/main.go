@@ -14,6 +14,7 @@ import (
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/httpapi"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/library"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/transfer"
@@ -64,6 +65,7 @@ func run(logger *slog.Logger) error {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.NewHandler(ready))
+	library.RegisterHTTP(mux, library.NewStore(pool))
 
 	origin := os.Getenv("PUBLIC_ORIGIN")
 	if origin == "" {

@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify and Apple Music OAuth or MusicKit connections, encrypted credentials, playlist pagination, ordered snapshot imports, transfer previews, and destination playlist writes are implemented. Cross-service synchronization and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
+Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify and Apple Music OAuth or MusicKit connections, encrypted credentials, playlist pagination, ordered snapshot imports, a provider-neutral library catalog, transfer previews, and destination playlist writes are implemented. Cross-service synchronization and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
 
 ## Vision
 
@@ -22,7 +22,8 @@ Transfers refer to recreating library entries and playlists in a destination ser
 
 - [ ] Define the first two music services and investigate integration capabilities.
 - [x] Establish the Go, PostgreSQL, and River application foundation.
-- [ ] Design a shared music-library model around the first two integrations.
+- [x] Design a shared music-library model around the first two integrations.
+- [x] Publish completed Spotify snapshots into the session-scoped library catalog.
 - [x] Implement Spotify account connection with encrypted credentials.
 - [x] Add Apple Music connection and playlist listing through MusicKit user tokens.
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.
