@@ -1,0 +1,26 @@
+{
+  "name": "pa-26004-1-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "scripts": {
+    "dev": "react-router dev",
+    "build": "react-router build",
+    "start": "react-router-serve ./build/server/index.js"
+  },
+  "dependencies": {
+    "@react-router/node": "latest",
+    "@react-router/serve": "latest",
+    "isbot": "^5",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router": "latest"
+  },
+  "devDependencies": {
+    "@react-router/dev": "^8.3.1",
+    "vite": "^8.2.2"
+  }
+}

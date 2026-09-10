@@ -102,6 +102,17 @@ GitHub Actions runs the Go checks on pushes and pull requests. The container smo
 
 See [the architecture notes](docs/architecture.md) for module boundaries and the next implementation steps.
 
+### Web UI
+
+The `ui/react-dashboard` branch contains the React Router Framework Mode UI. It uses the current React Router framework toolchain for route-based screens, pending states, and future data loaders while the Go API remains the system of record.
+
+```sh
+npm install
+npm run dev
+```
+
+The production build uses `npm run build`; `npm run start` serves the generated framework output. The UI currently presents the transfer workspace with local demo data. API loaders and actions will be connected as the authenticated application-user flow is added.
+
 Ideas and contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licensing
