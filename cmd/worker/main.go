@@ -56,6 +56,8 @@ func run(logger *slog.Logger) error {
 		provider := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
 		importer := spotify.NewImporter(pool, store, provider)
 		register = append(register, importer.Register)
+		listening := spotify.NewListeningImporter(pool, store, provider)
+		register = append(register, listening.Register)
 		transferProviders = append(transferProviders, transfer.NewSpotifyProvider(provider, store))
 	}
 	if appleConfig.TeamID != "" {

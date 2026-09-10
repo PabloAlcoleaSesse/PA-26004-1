@@ -61,6 +61,8 @@ func run(logger *slog.Logger) error {
 			"SELECT id FROM apple_imports LIMIT 0",
 			"SELECT id FROM app_users LIMIT 0",
 			"SELECT id FROM sync_requests LIMIT 0",
+			"SELECT id FROM listening_events LIMIT 0",
+			"SELECT id FROM listening_imports LIMIT 0",
 		} {
 			if _, err := pool.Exec(ctx, query); err != nil {
 				return err
@@ -81,6 +83,7 @@ func run(logger *slog.Logger) error {
 	var register []func(*river.Workers)
 	var spotifyAuth *spotify.Auth
 	var spotifyImporter *spotify.Importer
+	var spotifyListening *spotify.ListeningImporter
 	var appleImporter *applemusic.Importer
 	var transferService *transfer.Service
 	transferProviders := []transfer.Provider{}
@@ -92,9 +95,11 @@ func run(logger *slog.Logger) error {
 		}
 		client := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
 		spotifyImporter = spotify.NewImporter(pool, store, client)
+		spotifyListening = spotify.NewListeningImporter(pool, store, client)
 		spotifyAuth = spotify.NewAuth(client, store)
 		spotifyAuth.Register(mux)
 		register = append(register, spotifyImporter.Register)
+		register = append(register, spotifyListening.Register)
 		transferProviders = append(transferProviders, transfer.NewSpotifyProvider(client, store))
 		logger.Info("Spotify connection enabled")
 	} else {
@@ -132,6 +137,7 @@ func run(logger *slog.Logger) error {
 		}
 		if spotifyAuth != nil && spotifyImporter != nil {
 			spotifyAuth.RegisterImports(mux, spotifyImporter, queue)
+			spotifyAuth.RegisterListening(mux, spotifyListening, queue)
 		}
 		if appleImporter != nil {
 			applemusic.RegisterImports(mux, appleImporter, queue)

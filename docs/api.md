@@ -16,6 +16,10 @@ It returns `401` when the session is not connected.
 {"playlists":2,"entries":84,"tracks":76,"unavailable":1,"unsupported":2,"by_provider":{"spotify":1,"apple-music":1}}
 ```
 
+`GET /api/library/taste?limit=10` returns aggregate listening history after a
+Spotify listening import. It reports play counts and top tracks/artists; an
+empty result is expected until history has been imported.
+
 `GET /api/library/playlists?limit=100` lists the session's imported playlists.
 `GET /api/library/playlists/{id}?offset=0&limit=100` returns playlist metadata
 and ordered entries. Unavailable and unsupported entries remain in the result
@@ -36,6 +40,11 @@ Content-Type: application/json
 
 The response is `202` with an opaque `id`; poll
 `GET /api/apple-music/imports/{id}` until `state` is `completed` or `failed`.
+
+Spotify recently-played history is imported with
+`POST /api/spotify/listening-imports` and polled through the returned status
+URL. The importer requests at most 50 recent events per job and uses a stable
+provider event key, so repeated polling does not duplicate plays.
 
 ## Transfers and synchronization
 

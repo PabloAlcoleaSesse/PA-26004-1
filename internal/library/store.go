@@ -13,6 +13,7 @@ import (
 )
 
 var ErrPlaylistNotFound = errors.New("library_playlist_not_found")
+var ErrInvalidTasteLimit = errors.New("invalid_taste_limit")
 
 type Store struct{ pool *pgxpool.Pool }
 
@@ -117,4 +118,43 @@ func (s *Store) Stats(ctx context.Context, sessionHash string) (Stats, error) {
 		stats.ByProvider[provider] = count
 	}
 	return stats, rows.Err()
+}
+
+func (s *Store) Taste(ctx context.Context, sessionHash string, limit int) (TasteSummary, error) {
+	if limit < 1 || limit > 50 {
+		return TasteSummary{}, ErrInvalidTasteLimit
+	}
+	summary := TasteSummary{TopTracks: []TasteItem{}, TopArtists: []TasteItem{}}
+	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM listening_events WHERE session_hash=$1", sessionHash).Scan(&summary.TotalPlays); err != nil {
+		return TasteSummary{}, err
+	}
+	trackRows, err := s.pool.Query(ctx, `SELECT name,count(*) FROM listening_events WHERE session_hash=$1 AND name<>'' GROUP BY name ORDER BY count(*) DESC,name LIMIT $2`, sessionHash, limit)
+	if err != nil {
+		return TasteSummary{}, err
+	}
+	defer trackRows.Close()
+	for trackRows.Next() {
+		var item TasteItem
+		if err := trackRows.Scan(&item.Name, &item.Plays); err != nil {
+			return TasteSummary{}, err
+		}
+		summary.TopTracks = append(summary.TopTracks, item)
+	}
+	if err := trackRows.Err(); err != nil {
+		return TasteSummary{}, err
+	}
+	artistRows, err := s.pool.Query(ctx, `SELECT artist,count(*) FROM listening_events e CROSS JOIN LATERAL jsonb_array_elements_text(e.artists) AS artist
+		WHERE e.session_hash=$1 AND artist<>'' GROUP BY artist ORDER BY count(*) DESC,artist LIMIT $2`, sessionHash, limit)
+	if err != nil {
+		return TasteSummary{}, err
+	}
+	defer artistRows.Close()
+	for artistRows.Next() {
+		var item TasteItem
+		if err := artistRows.Scan(&item.Name, &item.Plays); err != nil {
+			return TasteSummary{}, err
+		}
+		summary.TopArtists = append(summary.TopArtists, item)
+	}
+	return summary, artistRows.Err()
 }

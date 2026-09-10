@@ -12,6 +12,31 @@ import (
 const sessionCookie = "music_session"
 
 func RegisterHTTP(mux *http.ServeMux, store *Store) {
+	mux.HandleFunc("GET /api/library/taste", func(w http.ResponseWriter, r *http.Request) {
+		hash, ok := sessionHashFromRequest(w, r)
+		if !ok {
+			return
+		}
+		limit := 10
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil {
+				http.Error(w, "invalid limit", http.StatusBadRequest)
+				return
+			}
+			limit = parsed
+		}
+		summary, err := store.Taste(r.Context(), hash, limit)
+		if err != nil {
+			if errors.Is(err, ErrInvalidTasteLimit) {
+				http.Error(w, "invalid limit", http.StatusBadRequest)
+				return
+			}
+			http.Error(w, "could not load taste summary", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, summary)
+	})
 	mux.HandleFunc("GET /api/library/stats", func(w http.ResponseWriter, r *http.Request) {
 		hash, ok := sessionHashFromRequest(w, r)
 		if !ok {

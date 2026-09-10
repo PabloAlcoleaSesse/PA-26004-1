@@ -2,7 +2,7 @@
 
 ## What is implemented
 
-The API supports Spotify OAuth with PKCE, encrypted credential storage, automatic refresh when checking the connection, and local disconnect. It requests playlist read and modification scopes so it can import playlists and create private destination playlists. Connected accounts are linked to a persistent application user. One-way synchronization is available through the shared `/api/syncs` API.
+The API supports Spotify OAuth with PKCE, encrypted credential storage, automatic refresh when checking the connection, and local disconnect. It requests playlist read, modification, and `user-read-recently-played` scopes so it can import playlists, recent listening events, and create private destination playlists. Connected accounts are linked to a persistent application user. One-way synchronization is available through the shared `/api/syncs` API. Existing connections must reconnect once to grant the additional history scope.
 
 Spotify authorization establishes a browser session for this first integration. There is no separate application user/login system yet. Each browser connection is independent; a second browser must authorize separately.
 

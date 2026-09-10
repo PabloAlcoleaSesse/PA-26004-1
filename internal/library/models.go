@@ -39,3 +39,14 @@ type Stats struct {
 	Unsupported int            `json:"unsupported"`
 	ByProvider  map[string]int `json:"by_provider"`
 }
+
+type TasteSummary struct {
+	TotalPlays int         `json:"total_plays"`
+	TopTracks  []TasteItem `json:"top_tracks"`
+	TopArtists []TasteItem `json:"top_artists"`
+}
+
+type TasteItem struct {
+	Name  string `json:"name"`
+	Plays int    `json:"plays"`
+}
