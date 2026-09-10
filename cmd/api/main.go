@@ -14,6 +14,7 @@ import (
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/httpapi"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/library"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/transfer"
@@ -55,6 +56,7 @@ func run(logger *slog.Logger) error {
 			"SELECT session_hash FROM spotify_connections LIMIT 0",
 			"SELECT import_id FROM spotify_snapshots LIMIT 0",
 			"SELECT id FROM transfer_previews LIMIT 0",
+			"SELECT id FROM library_playlists LIMIT 0",
 		} {
 			if _, err := pool.Exec(ctx, query); err != nil {
 				return err
@@ -64,6 +66,7 @@ func run(logger *slog.Logger) error {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.NewHandler(ready))
+	library.RegisterHTTP(mux, library.NewStore(pool))
 
 	origin := os.Getenv("PUBLIC_ORIGIN")
 	if origin == "" {

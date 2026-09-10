@@ -32,6 +32,8 @@ The first vertical slice should:
 
 The current implementation exposes `/api/transfers/previews` and `/api/transfers/previews/{id}` to create/read previews from Spotify snapshots. Transfer execution is queued through `/api/transfers/previews/{id}/runs`; Spotify can create a private destination playlist and Apple Music can create a library playlist, then both adapters append matched tracks with provider-specific identifiers. Unsupported provider operations remain explicit and are returned as controlled run failures.
 
+The provider-neutral catalog is available through `GET /api/library/playlists` and `GET /api/library/playlists/{id}`. Responses are scoped to the authenticated browser session. A successful Spotify snapshot import upserts canonical track metadata, provider source links, playlist occurrences, and unavailable or unsupported entries in the same database transaction as the source snapshot, so the catalog cannot expose a partially published import.
+
 Keep matching and transfer planning independent of provider HTTP clients so their rules can be tested with fixtures. Introduce shared track and playlist types as the first integrations reveal the required fields.
 
 ## Sync reliability
