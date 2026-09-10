@@ -2,7 +2,7 @@
 
 ## What is implemented
 
-The API supports Spotify OAuth with PKCE, encrypted credential storage, automatic refresh when checking the connection, and local disconnect. It requests `playlist-read-private` and `playlist-read-collaborative` for playlist import. Playlist transfers and scheduled cross-service sync are not implemented yet.
+The API supports Spotify OAuth with PKCE, encrypted credential storage, automatic refresh when checking the connection, and local disconnect. It requests playlist read and modification scopes so it can import playlists and create private destination playlists. Scheduled cross-service sync is not implemented yet.
 
 Spotify authorization establishes a browser session for this first integration. There is no separate application user/login system yet. Each browser connection is independent; a second browser must authorize separately.
 
@@ -62,7 +62,7 @@ To preview a transfer before any destination write, POST `/api/transfers/preview
 }
 ```
 
-The response persists and returns classified source entries (`matched`, `ambiguous`, `missing`, `unsupported`) in source order, including duplicates. Start a queued run with `POST /api/transfers/previews/{preview_id}/runs` and check run state with `GET /api/transfers/runs/{run_id}`. Destination playlist creation and track insertion are still explicit unsupported operations for providers that do not expose safe write capabilities in this backend.
+The response persists and returns classified source entries (`matched`, `ambiguous`, `missing`, `unsupported`) in source order, including duplicates. Start a queued run with `POST /api/transfers/previews/{preview_id}/runs` and check run state with `GET /api/transfers/runs/{run_id}`. Spotify runs create a private playlist and append matched tracks in order. Apple Music remains preview-only until its playlist write capabilities are implemented.
 
 ## Endpoints
 
@@ -78,7 +78,7 @@ The response persists and returns classified source entries (`matched`, `ambiguo
 | GET | `/api/spotify/imports/{import_id}/snapshot` | Read snapshot metadata and entries (`offset`, `limit` up to 100) |
 | POST | `/api/transfers/previews` | Persist and return a transfer preview from an imported snapshot |
 | GET | `/api/transfers/previews/{preview_id}` | Read a preview (`offset`, `limit` up to 500) |
-| POST | `/api/transfers/previews/{preview_id}/runs` | Enqueue a transfer run job for that preview |
+| POST | `/api/transfers/previews/{preview_id}/runs` | Enqueue a transfer run job for that preview; Spotify writes a private destination playlist |
 | GET | `/api/transfers/runs/{run_id}` | Read transfer run status and controlled error code |
 
 Disconnect requires the session cookie and an `Origin` header matching the redirect URI's origin. From the browser console on the API's origin:

@@ -150,6 +150,68 @@ func TestEmptyPlaylistAndSafePagination(t *testing.T) {
 	}
 }
 
+func TestSpotifyPlaylistWrites(t *testing.T) {
+	var gotName, gotDescription string
+	var gotURIs []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer private-access" {
+			t.Error("missing access token")
+		}
+		switch r.Method + " " + r.URL.Path {
+		case "POST /me/playlists":
+			var body struct {
+				Name          string `json:"name"`
+				Description   string `json:"description"`
+				Public        bool   `json:"public"`
+				Collaborative bool   `json:"collaborative"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			gotName, gotDescription = body.Name, body.Description
+			if body.Public || body.Collaborative {
+				t.Error("new transfer playlist must be private and non-collaborative")
+			}
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"created","name":"Transfer"}`))
+		case "POST /playlists/created/items":
+			var body struct {
+				URIs []string `json:"uris"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			gotURIs = append(gotURIs, body.URIs...)
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"snapshot_id":"v2"}`))
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := NewClient("test-client", "http://127.0.0.1:8080/auth/spotify/callback")
+	client.apiURL = server.URL
+	store := newMemoryStore()
+	hash := sessionHash("write-browser")
+	if err := store.Save(context.Background(), hash, "", Connection{Profile: Profile{ID: "account", AccountID: "stable"}, Tokens: Tokens{AccessToken: "private-access", RefreshToken: "private-refresh", ExpiresAt: time.Now().Add(time.Hour)}}, time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	playlist, err := client.CreatePlaylist(context.Background(), store, hash, CreatePlaylistInput{Name: " Transfer ", Description: "preview"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if playlist.ID != "created" || gotName != "Transfer" || gotDescription != "preview" {
+		t.Fatalf("unexpected playlist: %+v name=%q description=%q", playlist, gotName, gotDescription)
+	}
+	if err := client.AddTracksToPlaylist(context.Background(), store, hash, playlist.ID, []string{"track1", "track2"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(gotURIs, ",") != "spotify:track:track1,spotify:track:track2" {
+		t.Fatalf("unexpected URIs: %v", gotURIs)
+	}
+}
+
 func TestImportHTTPRejectsCSRFAndInvalidPagination(t *testing.T) {
 	auth, _, _ := testAuth(t, func(w http.ResponseWriter, r *http.Request) { t.Error("unexpected provider request") })
 	mux := http.NewServeMux()

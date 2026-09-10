@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify OAuth, encrypted credentials, playlist pagination, ordered snapshot imports, and transfer previews are implemented. Cross-service synchronization and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
+Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify OAuth, encrypted credentials, playlist pagination, ordered snapshot imports, transfer previews, and Spotify destination playlist writes are implemented. Apple Music transfer previews are available, while Apple Music destination writes, cross-service synchronization, and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
 
 ## Vision
 
@@ -28,7 +28,8 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.
 - [x] Import Spotify playlist metadata and ordered snapshots.
 - [x] Match tracks across services and preview a playlist transfer.
-- [ ] Execute destination writes for providers that support playlist creation and mutations.
+- [x] Execute Spotify destination playlist creation and track mutations.
+- [ ] Execute Apple Music destination playlist creation and track mutations.
 - [ ] Add opt-in playlist synchronization with conflict handling.
 - [ ] Add music-taste statistics using available data.
 - [ ] Explore sound-based recommendations and evaluate their quality.

@@ -79,12 +79,25 @@ func (p *SpotifyProvider) SearchTracks(ctx context.Context, hash string, query T
 	return result, nil
 }
 
-func (p *SpotifyProvider) CreatePlaylist(context.Context, string, CreatePlaylistInput) (Playlist, error) {
-	return Playlist{}, ErrUnsupportedOperation
+func (p *SpotifyProvider) CreatePlaylist(ctx context.Context, hash string, input CreatePlaylistInput) (Playlist, error) {
+	playlist, err := p.client.CreatePlaylist(ctx, p.store, hash, spotify.CreatePlaylistInput{Name: input.Name, Description: input.Description})
+	if err != nil {
+		return Playlist{}, mapSpotifyError(err)
+	}
+	return Playlist{Provider: ProviderSpotify, ID: playlist.ID, Name: playlist.Name, URL: playlist.ExternalURLs.Spotify, SnapshotID: playlist.SnapshotID}, nil
 }
 
-func (p *SpotifyProvider) AddTracksToPlaylist(context.Context, string, string, []string) error {
-	return ErrUnsupportedOperation
+func (p *SpotifyProvider) AddTracksToPlaylist(ctx context.Context, hash, playlistID string, trackIDs []string) error {
+	for start := 0; start < len(trackIDs); start += 100 {
+		end := start + 100
+		if end > len(trackIDs) {
+			end = len(trackIDs)
+		}
+		if err := p.client.AddTracksToPlaylist(ctx, p.store, hash, playlistID, trackIDs[start:end]); err != nil {
+			return mapSpotifyError(err)
+		}
+	}
+	return nil
 }
 
 type AppleMusicProvider struct {

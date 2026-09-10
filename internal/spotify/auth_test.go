@@ -97,6 +97,19 @@ func callback(mux http.Handler, query string, cookie *http.Cookie) *httptest.Res
 	return w
 }
 
+func containsAll(values []string, required ...string) bool {
+	set := make(map[string]bool, len(values))
+	for _, value := range values {
+		set[value] = true
+	}
+	for _, value := range required {
+		if !set[value] {
+			return false
+		}
+	}
+	return true
+}
+
 func TestAuthorizationRoundTrip(t *testing.T) {
 	var challenge string
 	var tokenCalls atomic.Int32
@@ -124,7 +137,8 @@ func TestAuthorizationRoundTrip(t *testing.T) {
 	})
 	state, cookie, params := startFlow(t, mux)
 	challenge = params.Get("code_challenge")
-	if params.Get("code_challenge_method") != "S256" || strings.Contains(params.Get("scope"), "modify") {
+	scopes := strings.Fields(params.Get("scope"))
+	if params.Get("code_challenge_method") != "S256" || !containsAll(scopes, "playlist-modify-private", "playlist-modify-public") {
 		t.Fatal("incorrect authorization permissions or PKCE")
 	}
 	// A matching state without the originating browser cookie is rejected.

@@ -30,7 +30,7 @@ The first vertical slice should:
 4. Preview a transfer, including unmatched tracks and version differences.
 5. Create a destination playlist, persist progress, and reconcile interrupted operations before retrying.
 
-The current implementation exposes `/api/transfers/previews` and `/api/transfers/previews/{id}` to create/read previews from Spotify snapshots. Transfer execution is queued through `/api/transfers/previews/{id}/runs`; unsupported destination playlist writes remain explicit and are returned as controlled run failures.
+The current implementation exposes `/api/transfers/previews` and `/api/transfers/previews/{id}` to create/read previews from Spotify snapshots. Transfer execution is queued through `/api/transfers/previews/{id}/runs`; Spotify can create a private destination playlist and append matched tracks, while unsupported provider writes remain explicit and are returned as controlled run failures.
 
 Keep matching and transfer planning independent of provider HTTP clients so their rules can be tested with fixtures. Introduce shared track and playlist types as the first integrations reveal the required fields.
 

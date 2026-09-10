@@ -18,6 +18,7 @@ import (
 // Profile excludes personal fields we do not need. Spotify's immutable
 // account_id identifies the account; its older id field can change.
 type Profile struct {
+	ID          string `json:"id"`
 	AccountID   string `json:"account_id"`
 	DisplayName string `json:"display_name"`
 }
@@ -70,8 +71,8 @@ func (c *Client) AuthorizationURL(state, challenge string) string {
 		"client_id": {c.clientID}, "redirect_uri": {c.redirectURI},
 		"response_type": {"code"}, "state": {state},
 		"code_challenge_method": {"S256"}, "code_challenge": {challenge},
-		// Read-only permissions cover connection and the upcoming import step.
-		"scope": {"playlist-read-private playlist-read-collaborative"},
+		// Modification permissions are required for destination playlist transfers.
+		"scope": {"playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public"},
 	}
 	return c.authorizeURL + "?" + q.Encode()
 }
@@ -142,12 +143,23 @@ func (c *Client) Profile(ctx context.Context, accessToken string) (Profile, erro
 }
 
 func (c *Client) request(req *http.Request, destination any) error {
+	return c.requestWithStatus(req, destination, http.StatusOK)
+}
+
+func (c *Client) requestWithStatus(req *http.Request, destination any, accepted ...int) error {
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return errors.New("Spotify request could not be completed")
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	validStatus := false
+	for _, status := range accepted {
+		if resp.StatusCode == status {
+			validStatus = true
+			break
+		}
+	}
+	if !validStatus {
 		var body struct {
 			Error string `json:"error"`
 		}
@@ -158,6 +170,9 @@ func (c *Client) request(req *http.Request, destination any) error {
 			retry = 0
 		}
 		return &ProviderError{Status: resp.StatusCode, RetryAfter: retry, Reconnect: body.Error == "invalid_grant"}
+	}
+	if destination == nil || resp.StatusCode == http.StatusNoContent {
+		return nil
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(destination); err != nil {
 		return errors.New("invalid Spotify response")

@@ -2,15 +2,22 @@ package spotify
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
 const maxSnapshotItems = 10000
+
+type CreatePlaylistInput struct {
+	Name        string
+	Description string
+}
 
 var ErrPlaylistChanged = errors.New("playlist_changed_during_import")
 var ErrPlaylistTooLarge = errors.New("playlist_exceeds_import_limit")
@@ -269,4 +276,70 @@ func (c *Client) ReadSnapshot(ctx context.Context, store Store, hash, id string)
 		return before, nil, ErrPlaylistChanged
 	}
 	return before, entries, nil
+}
+
+// CreatePlaylist creates a private playlist for the connected account. The
+// current Spotify API uses /me/playlists; no user ID is accepted from a request.
+func (c *Client) CreatePlaylist(ctx context.Context, store Store, hash string, input CreatePlaylistInput) (Playlist, error) {
+	input.Name = strings.TrimSpace(input.Name)
+	input.Description = strings.TrimSpace(input.Description)
+	if input.Name == "" || len(input.Name) > 100 || len(input.Description) > 300 {
+		return Playlist{}, errors.New("invalid_playlist_input")
+	}
+	var created Playlist
+	err := c.withConnection(ctx, store, hash, func(connection *Connection) error {
+		body, err := json.Marshal(struct {
+			Name          string `json:"name"`
+			Public        bool   `json:"public"`
+			Collaborative bool   `json:"collaborative"`
+			Description   string `json:"description,omitempty"`
+		}{input.Name, false, false, input.Description})
+		if err != nil {
+			return errors.New("cannot encode playlist request")
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.apiURL+"/me/playlists", strings.NewReader(string(body)))
+		if err != nil {
+			return errors.New("cannot prepare playlist create request")
+		}
+		req.Header.Set("Authorization", "Bearer "+connection.Tokens.AccessToken)
+		req.Header.Set("Content-Type", "application/json")
+		return c.requestWithStatus(req, &created, http.StatusCreated, http.StatusOK)
+	})
+	if err != nil {
+		return Playlist{}, err
+	}
+	if created.ID == "" || !validPlaylistID(created.ID) {
+		return Playlist{}, errors.New("invalid_created_playlist")
+	}
+	return created, nil
+}
+
+// AddTracksToPlaylist appends up to 100 Spotify URIs in one request. Callers
+// use small ordered batches so a retry can reconcile each position safely.
+func (c *Client) AddTracksToPlaylist(ctx context.Context, store Store, hash, playlistID string, trackIDs []string) error {
+	if !validPlaylistID(playlistID) || len(trackIDs) == 0 || len(trackIDs) > 100 {
+		return errors.New("invalid_playlist_tracks_request")
+	}
+	uris := make([]string, len(trackIDs))
+	for i, id := range trackIDs {
+		if !validPlaylistID(id) {
+			return errors.New("invalid_track_id")
+		}
+		uris[i] = "spotify:track:" + id
+	}
+	body, err := json.Marshal(struct {
+		URIs []string `json:"uris"`
+	}{uris})
+	if err != nil {
+		return errors.New("cannot encode playlist tracks request")
+	}
+	return c.withConnection(ctx, store, hash, func(connection *Connection) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.apiURL+"/playlists/"+url.PathEscape(playlistID)+"/items", strings.NewReader(string(body)))
+		if err != nil {
+			return errors.New("cannot prepare playlist tracks request")
+		}
+		req.Header.Set("Authorization", "Bearer "+connection.Tokens.AccessToken)
+		req.Header.Set("Content-Type", "application/json")
+		return c.requestWithStatus(req, nil, http.StatusCreated, http.StatusOK, http.StatusNoContent)
+	})
 }
