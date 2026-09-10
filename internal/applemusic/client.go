@@ -12,11 +12,26 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+type CreatePlaylistInput struct {
+	Name        string
+	Description string
+}
+
+type ProviderError struct {
+	Status     int
+	RetryAfter int
+}
+
+func (e *ProviderError) Error() string {
+	return fmt.Sprintf("Apple Music request failed (HTTP %d)", e.Status)
+}
 
 type Client struct {
 	teamID, keyID string
@@ -78,28 +93,109 @@ func (c *Client) DeveloperToken(now time.Time) (string, error) {
 }
 
 func (c *Client) request(ctx context.Context, userToken, path string, query url.Values, destination any) error {
+	return c.requestMethod(ctx, http.MethodGet, userToken, path, query, nil, destination, http.StatusOK)
+}
+
+func (c *Client) requestMethod(ctx context.Context, method, userToken, path string, query url.Values, body []byte, destination any, accepted ...int) error {
 	developerToken, err := c.DeveloperToken(time.Now())
 	if err != nil {
 		return errors.New("could not sign Apple developer token")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path+"?"+query.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path+"?"+query.Encode(), strings.NewReader(string(body)))
 	if err != nil {
 		return errors.New("could not prepare Apple Music request")
 	}
 	req.Header.Set("Authorization", "Bearer "+developerToken)
 	req.Header.Set("Music-User-Token", userToken)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return errors.New("Apple Music request failed")
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Apple Music request failed (HTTP %d)", resp.StatusCode)
+	ok := false
+	for _, status := range accepted {
+		if resp.StatusCode == status {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		retryAfter, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
+		if retryAfter < 0 || retryAfter > 86400 {
+			retryAfter = 0
+		}
+		return &ProviderError{Status: resp.StatusCode, RetryAfter: retryAfter}
+	}
+	if destination == nil || resp.StatusCode == http.StatusNoContent {
+		return nil
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(destination); err != nil {
 		return errors.New("invalid Apple Music response")
 	}
 	return nil
+}
+
+func validResourceID(id string) bool {
+	return len(id) > 0 && len(id) <= 128 && !strings.ContainsAny(id, "/?&")
+}
+
+// CreatePlaylist creates a private library playlist for the connected user.
+func (c *Client) CreatePlaylist(ctx context.Context, userToken, storefront string, input CreatePlaylistInput) (Playlist, error) {
+	input.Name = strings.TrimSpace(input.Name)
+	input.Description = strings.TrimSpace(input.Description)
+	if storefront == "" || len(storefront) > 16 || strings.ContainsAny(storefront, "/?&") || input.Name == "" || len(input.Name) > 255 || len(input.Description) > 1000 {
+		return Playlist{}, errors.New("invalid Apple Music playlist input")
+	}
+	body, err := json.Marshal(struct {
+		Attributes struct {
+			Name        string `json:"name"`
+			Description string `json:"description,omitempty"`
+		} `json:"attributes"`
+	}{Attributes: struct {
+		Name        string `json:"name"`
+		Description string `json:"description,omitempty"`
+	}{Name: input.Name, Description: input.Description}})
+	if err != nil {
+		return Playlist{}, errors.New("cannot encode Apple Music playlist request")
+	}
+	var response struct {
+		Data []Playlist `json:"data"`
+	}
+	if err := c.requestMethod(ctx, http.MethodPost, userToken, "/me/library/playlists", url.Values{"l": {storefront}}, body, &response, http.StatusCreated); err != nil {
+		return Playlist{}, err
+	}
+	if len(response.Data) != 1 || !validResourceID(response.Data[0].ID) {
+		return Playlist{}, errors.New("invalid Apple Music playlist response")
+	}
+	return response.Data[0], nil
+}
+
+// AddTracksToPlaylist appends catalog song IDs to a library playlist.
+func (c *Client) AddTracksToPlaylist(ctx context.Context, userToken, storefront, playlistID string, trackIDs []string) error {
+	if storefront == "" || len(storefront) > 16 || strings.ContainsAny(storefront, "/?&") || !validResourceID(playlistID) || len(trackIDs) == 0 || len(trackIDs) > 100 {
+		return errors.New("invalid Apple Music playlist tracks request")
+	}
+	type trackReference struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+	}
+	data := make([]trackReference, len(trackIDs))
+	for i, id := range trackIDs {
+		if !validResourceID(id) {
+			return errors.New("invalid Apple Music track ID")
+		}
+		data[i] = trackReference{ID: id, Type: "songs"}
+	}
+	body, err := json.Marshal(struct {
+		Data []trackReference `json:"data"`
+	}{Data: data})
+	if err != nil {
+		return errors.New("cannot encode Apple Music playlist tracks request")
+	}
+	return c.requestMethod(ctx, http.MethodPost, userToken, "/me/library/playlists/"+url.PathEscape(playlistID)+"/tracks", url.Values{"l": {storefront}}, body, nil, http.StatusNoContent)
 }
 
 func (c *Client) Playlists(ctx context.Context, userToken, storefront string, offset, limit int) (Page[Playlist], error) {

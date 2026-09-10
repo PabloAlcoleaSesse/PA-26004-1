@@ -62,7 +62,7 @@ To preview a transfer before any destination write, POST `/api/transfers/preview
 }
 ```
 
-The response persists and returns classified source entries (`matched`, `ambiguous`, `missing`, `unsupported`) in source order, including duplicates. Start a queued run with `POST /api/transfers/previews/{preview_id}/runs` and check run state with `GET /api/transfers/runs/{run_id}`. Spotify runs create a private playlist and append matched tracks in order. Apple Music remains preview-only until its playlist write capabilities are implemented.
+The response persists and returns classified source entries (`matched`, `ambiguous`, `missing`, `unsupported`) in source order, including duplicates. Start a queued run with `POST /api/transfers/previews/{preview_id}/runs` and check run state with `GET /api/transfers/runs/{run_id}`. Spotify runs create a private playlist and append matched tracks in order. Apple Music runs create a library playlist and append matched catalog songs in order.
 
 ## Endpoints
 
@@ -78,7 +78,7 @@ The response persists and returns classified source entries (`matched`, `ambiguo
 | GET | `/api/spotify/imports/{import_id}/snapshot` | Read snapshot metadata and entries (`offset`, `limit` up to 100) |
 | POST | `/api/transfers/previews` | Persist and return a transfer preview from an imported snapshot |
 | GET | `/api/transfers/previews/{preview_id}` | Read a preview (`offset`, `limit` up to 500) |
-| POST | `/api/transfers/previews/{preview_id}/runs` | Enqueue a transfer run job for that preview; Spotify writes a private destination playlist |
+| POST | `/api/transfers/previews/{preview_id}/runs` | Enqueue a transfer run job for that preview; writes a destination playlist on Spotify or Apple Music |
 | GET | `/api/transfers/runs/{run_id}` | Read transfer run status and controlled error code |
 
 Disconnect requires the session cookie and an `Origin` header matching the redirect URI's origin. From the browser console on the API's origin:
@@ -125,4 +125,4 @@ The test creates an isolated schema and removes it afterward. It checks repeatab
 
 The code comments explain the security and failure-handling decisions at each step. Provider behavior follows Spotify's [PKCE guide](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow), [refresh guide](https://developer.spotify.com/documentation/web-api/tutorials/refreshing-tokens), and [profile reference](https://developer.spotify.com/documentation/web-api/reference/get-current-users-profile).
 
-Apple Music is also available as an optional connection. Configure `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, and `TOKEN_ENCRYPTION_KEY`; generate the Apple user token in MusicKit JS or a native MusicKit client, then POST it to `/api/connections/apple-music` with `{"user_token":"...","storefront":"es"}`. The server signs short-lived ES256 developer JWTs and exposes `/api/apple-music/playlists`. Apple user tokens do not use the Spotify redirect flow and are not refreshable by this server; the client must request a new token when Apple requires it. See [Apple's MusicKit documentation](https://developer.apple.com/documentation/applemusicapi).
+Apple Music is also available as an optional connection. Configure `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`, and `TOKEN_ENCRYPTION_KEY`; generate the Apple user token in MusicKit JS or a native MusicKit client, then POST it to `/api/connections/apple-music` with `{"user_token":"...","storefront":"es"}`. The server signs short-lived ES256 developer JWTs, exposes `/api/apple-music/playlists`, and can create library playlists and add catalog songs during a transfer run. Apple user tokens do not use the Spotify redirect flow and are not refreshable by this server; the client must request a new token when Apple requires it. See [Apple's MusicKit documentation](https://developer.apple.com/documentation/applemusicapi).

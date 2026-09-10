@@ -178,12 +178,33 @@ func (p *AppleMusicProvider) SearchTracks(ctx context.Context, hash string, quer
 	return result, nil
 }
 
-func (p *AppleMusicProvider) CreatePlaylist(context.Context, string, CreatePlaylistInput) (Playlist, error) {
-	return Playlist{}, ErrUnsupportedOperation
+func (p *AppleMusicProvider) CreatePlaylist(ctx context.Context, hash string, input CreatePlaylistInput) (Playlist, error) {
+	connection, err := p.store.Load(ctx, hash)
+	if err != nil {
+		return Playlist{}, mapAppleError(err)
+	}
+	playlist, err := p.client.CreatePlaylist(ctx, connection.UserToken, connection.Storefront, applemusic.CreatePlaylistInput{Name: input.Name, Description: input.Description})
+	if err != nil {
+		return Playlist{}, mapAppleError(err)
+	}
+	return Playlist{Provider: ProviderAppleMusic, ID: playlist.ID, Name: playlist.Attributes.Name, URL: playlist.Attributes.URL}, nil
 }
 
-func (p *AppleMusicProvider) AddTracksToPlaylist(context.Context, string, string, []string) error {
-	return ErrUnsupportedOperation
+func (p *AppleMusicProvider) AddTracksToPlaylist(ctx context.Context, hash, playlistID string, trackIDs []string) error {
+	connection, err := p.store.Load(ctx, hash)
+	if err != nil {
+		return mapAppleError(err)
+	}
+	for start := 0; start < len(trackIDs); start += 100 {
+		end := start + 100
+		if end > len(trackIDs) {
+			end = len(trackIDs)
+		}
+		if err := p.client.AddTracksToPlaylist(ctx, connection.UserToken, connection.Storefront, playlistID, trackIDs[start:end]); err != nil {
+			return mapAppleError(err)
+		}
+	}
+	return nil
 }
 
 func mapSpotifyError(err error) error {
@@ -211,8 +232,13 @@ func mapAppleError(err error) error {
 	if errors.Is(err, applemusic.ErrNoConnection) {
 		return ErrPreviewNotFound
 	}
-	if strings.Contains(err.Error(), "HTTP 429") {
-		return &RateLimitError{RetryAfter: 30 * time.Second}
+	var upstream *applemusic.ProviderError
+	if errors.As(err, &upstream) && upstream.Status == 429 {
+		retry := time.Duration(upstream.RetryAfter) * time.Second
+		if retry <= 0 {
+			retry = 30 * time.Second
+		}
+		return &RateLimitError{RetryAfter: retry}
 	}
 	return fmt.Errorf("apple_music: %w", err)
 }

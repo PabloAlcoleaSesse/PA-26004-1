@@ -6,6 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
@@ -63,5 +64,61 @@ func TestAppleRequestHeadersAndPagination(t *testing.T) {
 	}
 	if !strings.HasPrefix(gotAuth, "Bearer ") || gotUser != "user-token" {
 		t.Fatal("missing Apple authorization headers")
+	}
+}
+
+func TestApplePlaylistWrites(t *testing.T) {
+	var createdName, createdDescription string
+	var added []map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Music-User-Token") != "user-token" || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+			t.Error("missing Apple authorization headers")
+		}
+		switch r.Method + " " + r.URL.Path {
+		case "POST /me/library/playlists":
+			var body struct {
+				Attributes struct {
+					Name        string `json:"name"`
+					Description string `json:"description"`
+				} `json:"attributes"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			createdName, createdDescription = body.Attributes.Name, body.Attributes.Description
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"data":[{"id":"p.created","attributes":{"name":"Created"}}]}`))
+		case "POST /me/library/playlists/p.created/tracks":
+			var body struct {
+				Data []map[string]string `json:"data"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			added = body.Data
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	client, err := NewClient("team", "key", testKey(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.baseURL = server.URL
+	playlist, err := client.CreatePlaylist(context.Background(), "user-token", "es", CreatePlaylistInput{Name: "  Transfer  ", Description: "Copied playlist"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if playlist.ID != "p.created" || createdName != "Transfer" || createdDescription != "Copied playlist" {
+		t.Fatalf("unexpected playlist response: %+v", playlist)
+	}
+	if err := client.AddTracksToPlaylist(context.Background(), "user-token", "es", playlist.ID, []string{"song1", "song2"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(added) != 2 || added[0]["id"] != "song1" || added[0]["type"] != "songs" || added[1]["id"] != "song2" {
+		t.Fatalf("unexpected added tracks: %#v", added)
 	}
 }
