@@ -34,6 +34,8 @@ The current implementation exposes `/api/transfers/previews` and `/api/transfers
 
 The provider-neutral catalog is available through `GET /api/library/playlists` and `GET /api/library/playlists/{id}`. Responses are scoped to the authenticated browser session. Spotify snapshots and queued Apple Music imports upsert canonical track metadata, provider source links, playlist occurrences, and unavailable or unsupported entries in one database transaction, so the catalog cannot expose a partially published import. Apple imports are queued through `POST /api/apple-music/imports` and polled through `GET /api/apple-music/imports/{id}`.
 
+Application identity is stored separately from provider credentials. Successful provider connection rotations create or reuse an application user, move the session mapping, and link an opaque provider account identifier in the same transaction as the encrypted connection. `GET /api/me` returns the durable user ID and linked provider names without exposing account tokens or token fingerprints.
+
 Keep matching and transfer planning independent of provider HTTP clients so their rules can be tested with fixtures. Introduce shared track and playlist types as the first integrations reveal the required fields.
 
 ## Sync reliability

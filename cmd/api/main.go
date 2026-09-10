@@ -13,6 +13,7 @@ import (
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/applemusic"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/httpapi"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/identity"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/library"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
@@ -58,6 +59,7 @@ func run(logger *slog.Logger) error {
 			"SELECT id FROM transfer_previews LIMIT 0",
 			"SELECT id FROM library_playlists LIMIT 0",
 			"SELECT id FROM apple_imports LIMIT 0",
+			"SELECT id FROM app_users LIMIT 0",
 		} {
 			if _, err := pool.Exec(ctx, query); err != nil {
 				return err
@@ -68,6 +70,7 @@ func run(logger *slog.Logger) error {
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.NewHandler(ready))
 	library.RegisterHTTP(mux, library.NewStore(pool))
+	identity.RegisterHTTP(mux, identity.NewStore(pool))
 
 	origin := os.Getenv("PUBLIC_ORIGIN")
 	if origin == "" {

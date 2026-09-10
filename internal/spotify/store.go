@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/identity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -86,6 +87,9 @@ func (s *PostgresStore) Save(ctx context.Context, hash, oldHash string, connecti
 	if _, err := tx.Exec(ctx, "INSERT INTO spotify_connections (session_hash, encrypted_credentials, expires_at) VALUES ($1, $2, $3)", hash, encrypted, expires); err != nil {
 		return err
 	}
+	if err := identity.LinkProviderTx(ctx, tx, hash, oldHash, "spotify", connection.Profile.AccountID, expires); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 
@@ -123,6 +127,17 @@ func (s *PostgresStore) Update(ctx context.Context, hash string, update func(*Co
 }
 
 func (s *PostgresStore) Delete(ctx context.Context, hash string) error {
-	_, err := s.pool.Exec(ctx, "DELETE FROM spotify_connections WHERE session_hash = $1", hash)
-	return err
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+	if _, err := tx.Exec(ctx, "DELETE FROM spotify_connections WHERE session_hash = $1", hash); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM provider_accounts pa USING user_sessions us
+		WHERE us.session_hash=$1 AND pa.user_id=us.user_id AND pa.provider='spotify'`, hash); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
