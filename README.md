@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify and Apple Music OAuth or MusicKit connections, encrypted credentials, playlist pagination, ordered snapshot imports, a provider-neutral library catalog, transfer previews, and destination playlist writes are implemented. Cross-service synchronization and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
+Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify and Apple Music OAuth or MusicKit connections, encrypted credentials, playlist pagination, ordered imports, persistent application identity, a provider-neutral library catalog, transfer previews, and destination playlist writes are implemented. Opt-in cross-service synchronization, taste statistics, and sound-based recommendations remain on the roadmap. See [Spotify setup](docs/spotify.md) for provider configuration.
 
 ## Vision
 
@@ -26,6 +26,7 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [x] Publish completed Spotify snapshots into the session-scoped library catalog.
 - [x] Queue Apple Music playlist imports into the shared library catalog.
 - [x] Persist application users and link connected provider accounts.
+- [x] Add one-way, queued playlist synchronization with safe destination reconciliation.
 - [x] Implement Spotify account connection with encrypted credentials.
 - [x] Add Apple Music connection and playlist listing through MusicKit user tokens.
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.
@@ -33,7 +34,7 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [x] Match tracks across services and preview a playlist transfer.
 - [x] Execute Spotify destination playlist creation and track mutations.
 - [x] Execute Apple Music destination playlist creation and track mutations.
-- [ ] Add opt-in playlist synchronization with conflict handling.
+- [x] Add opt-in playlist synchronization with conflict handling.
 - [ ] Add music-taste statistics using available data.
 - [ ] Explore sound-based recommendations and evaluate their quality.
 

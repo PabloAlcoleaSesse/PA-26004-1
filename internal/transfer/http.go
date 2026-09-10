@@ -106,6 +106,53 @@ func RegisterHTTP(mux *http.ServeMux, service *Service, queue *river.Client[pgx.
 		}
 		writeJSON(w, http.StatusOK, status)
 	})
+	mux.HandleFunc("POST /api/syncs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Origin") != origin {
+			http.Error(w, "Origin not allowed", http.StatusForbidden)
+			return
+		}
+		hash, ok := sessionHashFromRequest(w, r)
+		if !ok {
+			return
+		}
+		var input struct {
+			SourceProvider        string `json:"source_provider"`
+			SourcePlaylistID      string `json:"source_playlist_id"`
+			DestinationProvider   string `json:"destination_provider"`
+			DestinationPlaylistID string `json:"destination_playlist_id"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input); err != nil {
+			http.Error(w, "invalid sync request", http.StatusBadRequest)
+			return
+		}
+		status, err := service.EnqueueSync(r.Context(), queue, hash, input.SourceProvider, input.SourcePlaylistID, input.DestinationProvider, input.DestinationPlaylistID)
+		if errors.Is(err, ErrInvalidProvider) {
+			http.Error(w, "unsupported provider or invalid playlist", http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			http.Error(w, "could not enqueue sync", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Location", "/api/syncs/"+status.ID)
+		writeJSON(w, http.StatusAccepted, status)
+	})
+	mux.HandleFunc("GET /api/syncs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		hash, ok := sessionHashFromRequest(w, r)
+		if !ok {
+			return
+		}
+		status, err := service.SyncStatus(r.Context(), hash, r.PathValue("id"))
+		if errors.Is(err, ErrSyncNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			http.Error(w, "could not load sync", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+	})
 }
 
 func sessionHashFromRequest(w http.ResponseWriter, r *http.Request) (string, bool) {

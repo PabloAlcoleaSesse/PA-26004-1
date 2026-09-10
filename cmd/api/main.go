@@ -60,6 +60,7 @@ func run(logger *slog.Logger) error {
 			"SELECT id FROM library_playlists LIMIT 0",
 			"SELECT id FROM apple_imports LIMIT 0",
 			"SELECT id FROM app_users LIMIT 0",
+			"SELECT id FROM sync_requests LIMIT 0",
 		} {
 			if _, err := pool.Exec(ctx, query); err != nil {
 				return err
@@ -119,11 +120,10 @@ func run(logger *slog.Logger) error {
 		logger.Info("Apple Music connection enabled")
 	}
 
-	if spotifyImporter != nil {
-		if len(transferProviders) > 0 {
-			transferService = transfer.NewService(transfer.NewStore(pool), transferProviders...)
-			register = append(register, transferService.Register)
-		}
+	if len(transferProviders) > 0 {
+		transferService = transfer.NewService(transfer.NewStore(pool), transferProviders...)
+		register = append(register, transferService.Register)
+		register = append(register, transferService.RegisterSync)
 	}
 	if len(register) > 0 {
 		queue, err := jobs.NewClient(pool, logger, 0, register...)
