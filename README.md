@@ -20,7 +20,7 @@ Transfers refer to recreating library entries and playlists in a destination ser
 
 ## Roadmap
 
-- [ ] Define the first two music services and investigate integration capabilities.
+- [x] Define the first two music services and investigate integration capabilities.
 - [x] Establish the Go, PostgreSQL, and River application foundation.
 - [x] Design a shared music-library model around the first two integrations.
 - [x] Publish completed Spotify snapshots into the session-scoped library catalog.

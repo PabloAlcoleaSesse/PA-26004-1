@@ -50,7 +50,7 @@ Begin with one-way synchronization and an explicit source of truth. Add bidirect
 
 ## Deployment boundary
 
-This is a development foundation with Spotify browser sessions and encrypted credentials. Before unattended multi-provider sync, introduce a persistent application-user model and account-linking authorization. Deployment also needs managed secrets/key rotation, TLS termination, database backups, abuse controls, and monitoring. JSON application logs and River logs exist today; metrics and distributed tracing are future work. The public repository does not imply public access has been approved by any music provider.
+This is a development foundation with browser sessions, encrypted credentials, persistent application identity, and queued one-way synchronization. Deployment still needs managed secrets/key rotation, TLS termination, database backups, abuse controls, and monitoring. JSON application logs and River logs exist today; metrics and distributed tracing are future work. The public repository does not imply public access has been approved by any music provider.
 
 ## References
 
