@@ -52,6 +52,18 @@ The worker is not required for account connection. No access or refresh token ap
 
 After connecting, list playlists with `GET /api/spotify/playlists`. Start an asynchronous import with `POST /api/spotify/playlists/{playlist_id}/imports` from the API origin. Poll the returned `status_url`; when it reports `completed`, read the ordered snapshot from `snapshot_url`. Snapshot pages retain repeated tracks and unavailable/local entries at their original positions. The import checks Spotify's `snapshot_id` before publishing, so an edit during the read fails safely instead of publishing a partial snapshot.
 
+To preview a transfer before any destination write, POST `/api/transfers/previews` with:
+
+```json
+{
+  "source_provider": "spotify",
+  "source_snapshot_id": "your_spotify_import_id",
+  "destination_provider": "apple-music"
+}
+```
+
+The response persists and returns classified source entries (`matched`, `ambiguous`, `missing`, `unsupported`) in source order, including duplicates. Start a queued run with `POST /api/transfers/previews/{preview_id}/runs` and check run state with `GET /api/transfers/runs/{run_id}`. Destination playlist creation and track insertion are still explicit unsupported operations for providers that do not expose safe write capabilities in this backend.
+
 ## Endpoints
 
 | Method | Path | Behavior |
@@ -64,6 +76,10 @@ After connecting, list playlists with `GET /api/spotify/playlists`. Start an asy
 | POST | `/api/spotify/playlists/{playlist_id}/imports` | Enqueue an ordered playlist snapshot import |
 | GET | `/api/spotify/imports/{import_id}` | Read import status and controlled error code |
 | GET | `/api/spotify/imports/{import_id}/snapshot` | Read snapshot metadata and entries (`offset`, `limit` up to 100) |
+| POST | `/api/transfers/previews` | Persist and return a transfer preview from an imported snapshot |
+| GET | `/api/transfers/previews/{preview_id}` | Read a preview (`offset`, `limit` up to 500) |
+| POST | `/api/transfers/previews/{preview_id}/runs` | Enqueue a transfer run job for that preview |
+| GET | `/api/transfers/runs/{run_id}` | Read transfer run status and controlled error code |
 
 Disconnect requires the session cookie and an `Origin` header matching the redirect URI's origin. From the browser console on the API's origin:
 

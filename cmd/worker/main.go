@@ -8,10 +8,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/applemusic"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/transfer"
 	"github.com/riverqueue/river"
 )
 
@@ -33,6 +35,10 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	appleConfig, err := config.LoadAppleMusic()
+	if err != nil {
+		return err
+	}
 	signals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	pool, err := platform.OpenDatabase(signals, cfg.DatabaseURL)
@@ -40,7 +46,8 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer pool.Close()
-	var register []func(*river.Workers)
+	register := []func(*river.Workers){}
+	transferProviders := []transfer.Provider{}
 	if spotifyConfig.ClientID != "" {
 		store, err := spotify.NewPostgresStore(pool, spotifyConfig.EncryptionKey)
 		if err != nil {
@@ -49,12 +56,31 @@ func run(logger *slog.Logger) error {
 		provider := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
 		importer := spotify.NewImporter(pool, store, provider)
 		register = append(register, importer.Register)
+		transferProviders = append(transferProviders, transfer.NewSpotifyProvider(provider, store))
+	}
+	if appleConfig.TeamID != "" {
+		key, err := config.LoadTokenEncryptionKey()
+		if err != nil {
+			return err
+		}
+		store, err := applemusic.NewPostgresStore(pool, key)
+		if err != nil {
+			return err
+		}
+		provider, err := applemusic.NewClient(appleConfig.TeamID, appleConfig.KeyID, appleConfig.PrivateKeyPEM)
+		if err != nil {
+			return err
+		}
+		transferProviders = append(transferProviders, transfer.NewAppleMusicProvider(provider, store))
+	}
+	if len(transferProviders) > 0 {
+		service := transfer.NewService(transfer.NewStore(pool), transferProviders...)
+		register = append(register, service.Register)
 	}
 	client, err := jobs.NewClient(pool, logger, cfg.WorkerConcurrency, register...)
 	if err != nil {
 		return err
 	}
-	// Signals initiate a drain; they must not immediately cancel running jobs.
 	workCtx, cancelWork := context.WithCancel(context.Background())
 	defer cancelWork()
 	if err := client.Start(workCtx); err != nil {

@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify OAuth, encrypted credentials, playlist pagination, and ordered snapshot imports are implemented. Cross-service matching, synchronization, and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
+Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify OAuth, encrypted credentials, playlist pagination, ordered snapshot imports, and transfer previews are implemented. Cross-service synchronization and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
 
 ## Vision
 
@@ -27,8 +27,8 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [x] Add Apple Music connection and playlist listing through MusicKit user tokens.
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.
 - [x] Import Spotify playlist metadata and ordered snapshots.
-- [ ] Match tracks across services and preview a playlist transfer.
-- [ ] Execute transfers and report successful, missing, and ambiguous matches.
+- [x] Match tracks across services and preview a playlist transfer.
+- [ ] Execute destination writes for providers that support playlist creation and mutations.
 - [ ] Add opt-in playlist synchronization with conflict handling.
 - [ ] Add music-taste statistics using available data.
 - [ ] Explore sound-based recommendations and evaluate their quality.
@@ -77,7 +77,7 @@ In another terminal, load `.env` as above and run `make worker`. In a third term
 make check
 ```
 
-Checks formatting, runs `go vet`, runs tests with the race detector, and builds `bin/api`, `bin/worker`, and `bin/admin`. These checks use a simulated Spotify server and do not start containers or contact Spotify. PostgreSQL integration tests are opt-in through `TEST_DATABASE_URL`; see [verification](docs/spotify.md#verification).
+Checks formatting, runs `go vet`, runs tests with the race detector, and builds `bin/api`, `bin/worker`, and `bin/admin`. These checks use simulated provider clients and do not start containers or contact Spotify/Apple Music. PostgreSQL integration tests are opt-in through `TEST_DATABASE_URL`; see [verification](docs/spotify.md#verification).
 
 GitHub Actions runs the Go checks on pushes and pull requests. The container smoke test runs only when manually dispatching CI with `container_smoke` enabled.
 
