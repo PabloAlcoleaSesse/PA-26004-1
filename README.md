@@ -24,6 +24,7 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [x] Establish the Go, PostgreSQL, and River application foundation.
 - [x] Design a shared music-library model around the first two integrations.
 - [x] Publish completed Spotify snapshots into the session-scoped library catalog.
+- [x] Queue Apple Music playlist imports into the shared library catalog.
 - [x] Implement Spotify account connection with encrypted credentials.
 - [x] Add Apple Music connection and playlist listing through MusicKit user tokens.
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.
