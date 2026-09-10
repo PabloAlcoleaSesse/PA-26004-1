@@ -72,5 +72,20 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  ui:
+    image: pa-26004-1-ui:local
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      API_ORIGIN: ${API_ORIGIN:-http://127.0.0.1:8080}
+    ports:
+      - "127.0.0.1:${UI_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres_data:

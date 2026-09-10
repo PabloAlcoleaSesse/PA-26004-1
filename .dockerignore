@@ -3,6 +3,9 @@
 .env
 .env.*
 bin
+node_modules
+build
+dist
 .cache
 coverage*
 *.log

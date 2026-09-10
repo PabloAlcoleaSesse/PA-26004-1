@@ -51,6 +51,8 @@ Compose starts PostgreSQL, runs River migrations, then starts the API and worker
 
 The API is available at `http://127.0.0.1:8080`. PostgreSQL is exposed on `127.0.0.1:5433` to avoid the usual local PostgreSQL port. Both ports are bound to loopback. Override `API_PORT` and `POSTGRES_PORT` if needed.
 
+The React Router UI is available at `http://127.0.0.1:3000`. Override `UI_PORT` if that port is already in use. The UI service waits for the API health check before starting.
+
 ```sh
 docker compose logs -f api worker
 docker compose down
