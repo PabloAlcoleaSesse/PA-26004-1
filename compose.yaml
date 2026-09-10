@@ -73,7 +73,9 @@ services:
         condition: service_completed_successfully
 
   ui:
-    image: pa-26004-1-ui:local
+    # Keep the UI image distinct from the first dashboard image so Compose
+    # cannot silently reuse stale frontend assets after a redesign.
+    image: pa-26004-1-ui:mission
     build:
       context: .
       dockerfile: Dockerfile.ui
