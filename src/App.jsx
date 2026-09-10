@@ -63,7 +63,10 @@ function App() {
 
       <main className="main-content" id="top">
         <header className="topbar">
-          <div className="breadcrumb"><span>Workspace</span><span className="breadcrumb-separator">/</span><strong>{activeView}</strong></div>
+          <a className="topbar-brand" href="#top" aria-label="Resonance home"><span className="brand-mark"><span /></span><span>RESONANCE</span></a>
+          <nav className="top-nav" aria-label="Main navigation">
+            {['Overview', 'Transfers', 'Library', 'Insights'].map((item) => <button key={item} className={activeView === item ? 'is-active' : ''} onClick={() => setActiveView(item)}>{item}</button>)}
+          </nav>
           <div className="topbar-actions">
             <button className="icon-button" aria-label="Notifications"><BellIcon /><span className="notification-dot" /></button>
             <button className="help-button">?</button>
@@ -73,11 +76,11 @@ function App() {
         <div className="content-wrap">
           <section className="hero-row">
             <div>
-              <p className="eyebrow">Thursday, September 10, 2026</p>
-              <h1>Good evening, Pablo <span className="wave">✦</span></h1>
-              <p className="hero-copy">Your listening world, in sync.</p>
+              <p className="eyebrow">PERSONAL MUSIC TRANSFER SYSTEM · 10 SEP 2026</p>
+              <h1>YOUR LISTENING<br />WORLD, IN SYNC.</h1>
+              <p className="hero-copy">Move playlists between services with confidence.</p>
             </div>
-            <button className="primary-button" onClick={() => document.getElementById('transfer-builder')?.scrollIntoView({ behavior: 'smooth' })}><span>＋</span> New transfer</button>
+            <button className="primary-button" onClick={() => document.getElementById('transfer-builder')?.scrollIntoView({ behavior: 'smooth' })}>START A TRANSFER <span>↗</span></button>
           </section>
 
           <section className="stats-grid" aria-label="Library statistics">
