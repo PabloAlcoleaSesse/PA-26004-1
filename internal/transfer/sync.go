@@ -117,7 +117,7 @@ func (s *Service) SyncStatus(ctx context.Context, hash, id string) (SyncStatus, 
 }
 
 func (s *Service) CancelSync(ctx context.Context, hash, id string) (SyncStatus, error) {
-	result, err := s.store.pool.Exec(ctx, `UPDATE sync_requests SET schedule_enabled=false,state=CASE WHEN state IN ('queued','running') THEN state ELSE 'cancelled' END,updated_at=now() WHERE id=$1 AND session_hash=$2`, id, hash)
+	result, err := s.store.pool.Exec(ctx, `UPDATE sync_requests SET schedule_enabled=false,state=CASE WHEN state='running' THEN state ELSE 'cancelled' END,next_run_at=NULL,updated_at=now() WHERE id=$1 AND session_hash=$2`, id, hash)
 	if err != nil {
 		return SyncStatus{}, err
 	}
@@ -236,14 +236,17 @@ type syncWorker struct {
 func (w *syncWorker) Timeout(*river.Job[SyncArgs]) time.Duration { return 15 * time.Minute }
 
 func (w *syncWorker) Work(ctx context.Context, job *river.Job[SyncArgs]) error {
-	var hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID string
-	err := w.service.store.pool.QueryRow(ctx, `SELECT session_hash,source_provider,source_playlist_id,destination_provider,destination_playlist_id
-		FROM sync_requests WHERE id=$1`, job.Args.SyncID).Scan(&hash, &sourceProvider, &sourcePlaylistID, &destinationProvider, &destinationPlaylistID)
+	var hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID, state string
+	err := w.service.store.pool.QueryRow(ctx, `SELECT session_hash,source_provider,source_playlist_id,destination_provider,destination_playlist_id,state
+		FROM sync_requests WHERE id=$1`, job.Args.SyncID).Scan(&hash, &sourceProvider, &sourcePlaylistID, &destinationProvider, &destinationPlaylistID, &state)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return river.JobCancel(ErrSyncNotFound)
 	}
 	if err != nil {
 		return err
+	}
+	if state == "cancelled" {
+		return river.JobCancel(errors.New("sync_cancelled"))
 	}
 	playlistID, _, err := w.service.SyncOnce(ctx, hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID)
 	if err == nil {
