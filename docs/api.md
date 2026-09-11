@@ -53,17 +53,37 @@ Transfer previews are created with `POST /api/transfers/previews`, read with
 `POST /api/transfers/previews/{id}/runs`. Every preview entry is classified as
 `matched`, `ambiguous`, `missing`, or `unsupported` before a destination write.
 
+An ambiguous entry can be resolved by selecting one of its persisted
+destination candidates:
+
+```http
+POST /api/transfers/previews/{preview_id}/entries/{position}/match
+Content-Type: application/json
+
+{"provider":"apple-music","id":"candidate-id"}
+```
+
+The candidate must exactly match a candidate returned in that preview and the
+request must belong to the preview's session. The response returns the updated
+entry with `status: "matched"` and `reason: "manual_match"`. Match decisions
+are durable and are rejected once a transfer run exists, preventing changes
+while destination writes may be in progress.
+
 One-way synchronization is queued with:
 
 ```json
 POST /api/syncs
-{"source_provider":"spotify","source_playlist_id":"p1","destination_provider":"apple-music","destination_playlist_id":""}
+{"source_provider":"spotify","source_playlist_id":"p1","destination_provider":"apple-music","destination_playlist_id":"","schedule_interval_seconds":3600}
 ```
 
 The response is `202` and can be polled with `GET /api/syncs/{id}`. A sync
 fails explicitly on ambiguous, missing, unavailable, or unsupported source
 entries; it does not silently drop them. A blank destination ID creates or
-reuses a playlist named `<source> (sync)`.
+reuses a playlist named `<source> (sync)`. `schedule_interval_seconds` is
+optional; zero creates a one-shot sync, while recurring syncs accept intervals
+from 900 seconds (15 minutes) through 2592000 seconds (30 days). A recurring
+sync runs immediately and schedules its next run after successful completion.
+`DELETE /api/syncs/{id}` disables future runs and returns the current status.
 
 Provider errors use stable HTTP classes: `401` for a missing or expired
 connection, `403` for an origin or provider authorization failure, `404` for a

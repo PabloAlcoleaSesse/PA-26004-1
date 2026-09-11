@@ -14,6 +14,11 @@ import (
 
 var ErrSyncNotFound = errors.New("sync_request_not_found")
 
+const (
+	MinSyncInterval = 15 * time.Minute
+	MaxSyncInterval = 30 * 24 * time.Hour
+)
+
 type SyncArgs struct {
 	SyncID string `json:"sync_id"`
 }
@@ -21,19 +26,29 @@ type SyncArgs struct {
 func (SyncArgs) Kind() string { return "library_sync" }
 
 type SyncStatus struct {
-	ID                    string    `json:"id"`
-	SourceProvider        string    `json:"source_provider"`
-	SourcePlaylistID      string    `json:"source_playlist_id"`
-	DestinationProvider   string    `json:"destination_provider"`
-	DestinationPlaylistID string    `json:"destination_playlist_id,omitempty"`
-	State                 string    `json:"state"`
-	ErrorCode             string    `json:"error_code,omitempty"`
-	NextPosition          int       `json:"next_position"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	ID                      string     `json:"id"`
+	SourceProvider          string     `json:"source_provider"`
+	SourcePlaylistID        string     `json:"source_playlist_id"`
+	DestinationProvider     string     `json:"destination_provider"`
+	DestinationPlaylistID   string     `json:"destination_playlist_id,omitempty"`
+	State                   string     `json:"state"`
+	ErrorCode               string     `json:"error_code,omitempty"`
+	NextPosition            int        `json:"next_position"`
+	CreatedAt               time.Time  `json:"created_at"`
+	UpdatedAt               time.Time  `json:"updated_at"`
+	ScheduleIntervalSeconds int        `json:"schedule_interval_seconds,omitempty"`
+	ScheduleEnabled         bool       `json:"schedule_enabled"`
+	NextRunAt               *time.Time `json:"next_run_at,omitempty"`
+	LastRunAt               *time.Time `json:"last_run_at,omitempty"`
 }
 
 func (s *Service) EnqueueSync(ctx context.Context, queue *river.Client[pgx.Tx], hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID string) (SyncStatus, error) {
+	return s.EnqueueSyncWithSchedule(ctx, queue, hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID, 0)
+}
+
+// EnqueueSyncWithSchedule starts an immediate sync and optionally continues it
+// at the requested interval after each successful run.
+func (s *Service) EnqueueSyncWithSchedule(ctx context.Context, queue *river.Client[pgx.Tx], hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID string, interval time.Duration) (SyncStatus, error) {
 	sourceProvider = strings.TrimSpace(sourceProvider)
 	destinationProvider = strings.TrimSpace(destinationProvider)
 	if sourceProvider == "" || sourcePlaylistID == "" || destinationProvider == "" {
@@ -45,17 +60,20 @@ func (s *Service) EnqueueSync(ctx context.Context, queue *river.Client[pgx.Tx], 
 	if _, ok := s.providers[destinationProvider]; !ok {
 		return SyncStatus{}, ErrInvalidProvider
 	}
+	if err := validateScheduleInterval(interval); err != nil {
+		return SyncStatus{}, err
+	}
 	tx, err := s.store.pool.Begin(ctx)
 	if err != nil {
 		return SyncStatus{}, err
 	}
 	defer tx.Rollback(context.Background())
 	var result SyncStatus
-	err = tx.QueryRow(ctx, `SELECT id,source_provider,source_playlist_id,destination_provider,destination_playlist_id,state,error_code,next_position,created_at,updated_at
+	err = tx.QueryRow(ctx, `SELECT id,source_provider,source_playlist_id,destination_provider,destination_playlist_id,state,error_code,next_position,created_at,updated_at,schedule_interval_seconds,schedule_enabled,next_run_at,last_run_at
 		FROM sync_requests WHERE session_hash=$1 AND source_provider=$2 AND source_playlist_id=$3 AND destination_provider=$4
 		AND state IN ('queued','running') LIMIT 1`, hash, sourceProvider, sourcePlaylistID, destinationProvider).Scan(
 		&result.ID, &result.SourceProvider, &result.SourcePlaylistID, &result.DestinationProvider, &result.DestinationPlaylistID,
-		&result.State, &result.ErrorCode, &result.NextPosition, &result.CreatedAt, &result.UpdatedAt)
+		&result.State, &result.ErrorCode, &result.NextPosition, &result.CreatedAt, &result.UpdatedAt, &result.ScheduleIntervalSeconds, &result.ScheduleEnabled, &result.NextRunAt, &result.LastRunAt)
 	if err == nil {
 		return result, tx.Commit(ctx)
 	}
@@ -67,27 +85,46 @@ func (s *Service) EnqueueSync(ctx context.Context, queue *river.Client[pgx.Tx], 
 	if err != nil {
 		return SyncStatus{}, err
 	}
-	err = tx.QueryRow(ctx, `INSERT INTO sync_requests(id,session_hash,source_provider,source_playlist_id,destination_provider,destination_playlist_id,river_job_id)
-		VALUES($1,$2,$3,$4,$5,$6,$7)
-		RETURNING id,source_provider,source_playlist_id,destination_provider,destination_playlist_id,state,error_code,next_position,created_at,updated_at`, result.ID, hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID, job.Job.ID).Scan(
+	seconds := int(interval / time.Second)
+	err = tx.QueryRow(ctx, `INSERT INTO sync_requests(id,session_hash,source_provider,source_playlist_id,destination_provider,destination_playlist_id,river_job_id,schedule_interval_seconds,schedule_enabled)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+		RETURNING id,source_provider,source_playlist_id,destination_provider,destination_playlist_id,state,error_code,next_position,created_at,updated_at,schedule_interval_seconds,schedule_enabled,next_run_at,last_run_at`, result.ID, hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID, job.Job.ID, seconds, seconds > 0).Scan(
 		&result.ID, &result.SourceProvider, &result.SourcePlaylistID, &result.DestinationProvider, &result.DestinationPlaylistID,
-		&result.State, &result.ErrorCode, &result.NextPosition, &result.CreatedAt, &result.UpdatedAt)
+		&result.State, &result.ErrorCode, &result.NextPosition, &result.CreatedAt, &result.UpdatedAt, &result.ScheduleIntervalSeconds, &result.ScheduleEnabled, &result.NextRunAt, &result.LastRunAt)
 	if err != nil {
 		return SyncStatus{}, err
 	}
 	return result, tx.Commit(ctx)
 }
 
+func validateScheduleInterval(interval time.Duration) error {
+	if interval != 0 && (interval < MinSyncInterval || interval > MaxSyncInterval) {
+		return ErrInvalidSchedule
+	}
+	return nil
+}
+
 func (s *Service) SyncStatus(ctx context.Context, hash, id string) (SyncStatus, error) {
 	var result SyncStatus
-	err := s.store.pool.QueryRow(ctx, `SELECT id,source_provider,source_playlist_id,destination_provider,destination_playlist_id,state,error_code,next_position,created_at,updated_at
+	err := s.store.pool.QueryRow(ctx, `SELECT id,source_provider,source_playlist_id,destination_provider,destination_playlist_id,state,error_code,next_position,created_at,updated_at,schedule_interval_seconds,schedule_enabled,next_run_at,last_run_at
 		FROM sync_requests WHERE id=$1 AND session_hash=$2`, id, hash).Scan(
 		&result.ID, &result.SourceProvider, &result.SourcePlaylistID, &result.DestinationProvider, &result.DestinationPlaylistID,
-		&result.State, &result.ErrorCode, &result.NextPosition, &result.CreatedAt, &result.UpdatedAt)
+		&result.State, &result.ErrorCode, &result.NextPosition, &result.CreatedAt, &result.UpdatedAt, &result.ScheduleIntervalSeconds, &result.ScheduleEnabled, &result.NextRunAt, &result.LastRunAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, ErrSyncNotFound
 	}
 	return result, err
+}
+
+func (s *Service) CancelSync(ctx context.Context, hash, id string) (SyncStatus, error) {
+	result, err := s.store.pool.Exec(ctx, `UPDATE sync_requests SET schedule_enabled=false,state=CASE WHEN state IN ('queued','running') THEN state ELSE 'cancelled' END,updated_at=now() WHERE id=$1 AND session_hash=$2`, id, hash)
+	if err != nil {
+		return SyncStatus{}, err
+	}
+	if result.RowsAffected() == 0 {
+		return SyncStatus{}, ErrSyncNotFound
+	}
+	return s.SyncStatus(ctx, hash, id)
 }
 
 func (s *Service) RegisterSync(workers *river.Workers) {
@@ -210,8 +247,7 @@ func (w *syncWorker) Work(ctx context.Context, job *river.Job[SyncArgs]) error {
 	}
 	playlistID, _, err := w.service.SyncOnce(ctx, hash, sourceProvider, sourcePlaylistID, destinationProvider, destinationPlaylistID)
 	if err == nil {
-		_, updateErr := w.service.store.pool.Exec(ctx, "UPDATE sync_requests SET state='completed',destination_playlist_id=$2,error_code='',updated_at=now() WHERE id=$1", job.Args.SyncID, playlistID)
-		return updateErr
+		return w.service.finishSync(ctx, job.Args.SyncID, playlistID)
 	}
 	code := "sync_failed"
 	if errors.Is(err, ErrUnsupportedOperation) {
@@ -229,4 +265,39 @@ func (w *syncWorker) Work(ctx context.Context, job *river.Job[SyncArgs]) error {
 	}
 	_, _ = w.service.store.pool.Exec(ctx, "UPDATE sync_requests SET state='failed',error_code=$2,updated_at=now() WHERE id=$1", job.Args.SyncID, code)
 	return err
+}
+
+// finishSync commits the result and, for a recurring request, schedules the
+// next River job in the same transaction as the next-run pointer update.
+func (s *Service) finishSync(ctx context.Context, id, playlistID string) error {
+	tx, err := s.store.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(context.Background())
+	var interval int
+	var enabled bool
+	if err := tx.QueryRow(ctx, `SELECT schedule_interval_seconds,schedule_enabled FROM sync_requests WHERE id=$1 FOR UPDATE`, id).Scan(&interval, &enabled); err != nil {
+		return err
+	}
+	if interval > 0 && enabled {
+		if s.queue == nil {
+			return errors.New("sync_schedule_queue_unavailable")
+		}
+		next := time.Now().UTC().Add(time.Duration(interval) * time.Second)
+		job, err := s.queue.InsertTx(ctx, tx, SyncArgs{SyncID: id}, &river.InsertOpts{MaxAttempts: 10, ScheduledAt: next})
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE sync_requests SET state='queued',destination_playlist_id=$2,error_code='',last_run_at=now(),next_run_at=$3,river_job_id=$4,updated_at=now() WHERE id=$1`, id, playlistID, next, job.Job.ID)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err = tx.Exec(ctx, `UPDATE sync_requests SET state='completed',destination_playlist_id=$2,error_code='',last_run_at=now(),next_run_at=NULL,updated_at=now() WHERE id=$1`, id, playlistID)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }

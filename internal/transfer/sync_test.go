@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 type syncProvider struct {
@@ -14,6 +15,27 @@ type syncProvider struct {
 	destination []PlaylistEntry
 	created     bool
 	adds        int
+}
+
+func TestValidateScheduleInterval(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		interval time.Duration
+		valid    bool
+	}{
+		{name: "one shot", interval: 0, valid: true},
+		{name: "minimum", interval: MinSyncInterval, valid: true},
+		{name: "maximum", interval: MaxSyncInterval, valid: true},
+		{name: "too frequent", interval: MinSyncInterval - time.Second, valid: false},
+		{name: "too distant", interval: MaxSyncInterval + time.Second, valid: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateScheduleInterval(test.interval)
+			if (err == nil) != test.valid {
+				t.Fatalf("interval %s valid=%v, error=%v", test.interval, test.valid, err)
+			}
+		})
+	}
 }
 
 func (p *syncProvider) Name() string { return p.name }

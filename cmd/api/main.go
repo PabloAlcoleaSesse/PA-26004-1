@@ -135,6 +135,9 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return err
 		}
+		if transferService != nil {
+			transferService.SetQueue(queue)
+		}
 		if spotifyAuth != nil && spotifyImporter != nil {
 			spotifyAuth.RegisterImports(mux, spotifyImporter, queue)
 			spotifyAuth.RegisterListening(mux, spotifyListening, queue)
