@@ -147,7 +147,7 @@ func run(logger *slog.Logger) error {
 		}
 	}
 
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.LoggingHandler(mux, logger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 1)
 	go func() { errs <- server.ListenAndServe() }()
 	logger.Info("api starting", "address", cfg.HTTPAddr)

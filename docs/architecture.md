@@ -10,7 +10,7 @@ One Go module contains three executable commands:
 
 Shared code lives in `internal/config`, `internal/platform`, `internal/httpapi`, and `internal/jobs`. The `internal/spotify` package owns OAuth, provider requests, and browser connection storage. PostgreSQL stores River's queue, migration history, and encrypted Spotify connections. Application migrations are embedded, checksummed, and applied under a transaction-scoped advisory lock.
 
-The API and worker run as separate processes from the same container image. The image runs as a non-root user and includes CA certificates for future HTTPS integrations. Local Compose supplies PostgreSQL and runs migrations before starting either process. In other environments, run `admin migrate` as a single deployment step before starting application processes.
+The API and worker run as separate processes from the same container image. The image runs as a non-root user and includes CA certificates for future HTTPS integrations. Local Compose supplies PostgreSQL and runs migrations before starting either process. In other environments, run `admin migrate` as a single deployment step before starting application processes. The API's `/healthz` probe checks process liveness, while `/readyz` verifies database access; monitor the worker separately with the admin probe command.
 
 River's programmatic migrator uses the version pinned in `go.mod`; it is not downloaded independently at runtime. Migrations are forward-only through the supplied command. Backups and rollback procedures must be established for deployed environments before changing persistent application data.
 
@@ -50,7 +50,7 @@ Begin with one-way synchronization and an explicit source of truth. Add bidirect
 
 ## Deployment boundary
 
-This is a development foundation with browser sessions, encrypted credentials, persistent application identity, and queued one-way synchronization. Deployment still needs managed secrets/key rotation, TLS termination, database backups, abuse controls, and monitoring. JSON application logs and River logs exist today; metrics and distributed tracing are future work. The public repository does not imply public access has been approved by any music provider.
+This is a development foundation with browser sessions, encrypted credentials, persistent application identity, and queued one-way synchronization. Deployment still needs managed secrets/key rotation, TLS termination, database backups, abuse controls, and metrics/tracing. JSON application and River logs exist today; API request logs carry an `X-Request-ID` correlation value and intentionally exclude query strings. The public repository does not imply public access has been approved by any music provider.
 
 ## References
 

@@ -106,6 +106,8 @@ GitHub Actions runs the Go checks on pushes and pull requests. The container smo
 
 `GET /healthz` reports whether the HTTP process is alive. `GET /readyz` checks database connectivity and access to the River, provider, catalog, identity, and sync tables, returning `503` when unavailable. Neither endpoint establishes that the separate worker is running; use the probe command for that.
 
+The API emits one JSON request event per HTTP request. Each response includes an `X-Request-ID` correlation header; logs include the method, route path, status, response size, and duration while omitting query strings and headers so credentials are not copied into logs. Store these logs in your deployment platform and retain them according to your operational policy.
+
 See [the API contract](docs/api.md) and [the architecture notes](docs/architecture.md) for endpoint behavior, module boundaries, and implementation steps.
 
 Ideas and contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
