@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
@@ -15,6 +16,10 @@ import (
 )
 
 var ErrPreviewNotFound = errors.New("transfer_preview_not_found")
+var ErrPreviewEntryNotFound = errors.New("transfer_preview_entry_not_found")
+var ErrInvalidMatchCandidate = errors.New("invalid_match_candidate")
+var ErrMatchNotResolvable = errors.New("match_not_resolvable")
+var ErrPreviewLocked = errors.New("transfer_preview_locked")
 var ErrRunNotFound = errors.New("transfer_run_not_found")
 var ErrSourceSnapshotNotFound = errors.New("source_snapshot_not_found")
 
@@ -181,6 +186,106 @@ func (s *Store) LoadPreview(ctx context.Context, hash, previewID string, offset,
 		return TransferPreview{}, err
 	}
 	return preview, nil
+}
+
+// ResolveMatch records a candidate selected by the owner of a preview. The
+// candidate must come from that preview's persisted search results; accepting
+// an arbitrary provider ID would let a client bypass matching safeguards.
+func (s *Store) ResolveMatch(ctx context.Context, hash, previewID string, position int, provider, providerID string) (PreviewEntry, error) {
+	if position < 0 || strings.TrimSpace(provider) == "" || strings.TrimSpace(providerID) == "" {
+		return PreviewEntry{}, ErrInvalidMatchCandidate
+	}
+	provider = strings.TrimSpace(provider)
+	providerID = strings.TrimSpace(providerID)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return PreviewEntry{}, err
+	}
+	defer tx.Rollback(context.Background())
+
+	var destinationProvider, previewState string
+	err = tx.QueryRow(ctx, `SELECT destination_provider,state FROM transfer_previews
+		WHERE id=$1 AND session_hash=$2 FOR UPDATE`, previewID, hash).Scan(&destinationProvider, &previewState)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PreviewEntry{}, ErrPreviewNotFound
+	}
+	if err != nil {
+		return PreviewEntry{}, err
+	}
+	if previewState != "ready" {
+		return PreviewEntry{}, ErrPreviewLocked
+	}
+	var runState string
+	err = tx.QueryRow(ctx, "SELECT state FROM transfer_runs WHERE preview_id=$1", previewID).Scan(&runState)
+	if err == nil {
+		return PreviewEntry{}, ErrPreviewLocked
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return PreviewEntry{}, err
+	}
+	if provider != destinationProvider {
+		return PreviewEntry{}, ErrInvalidMatchCandidate
+	}
+
+	var entry PreviewEntry
+	var sourceJSON, candidateJSON, matchedJSON []byte
+	var status string
+	err = tx.QueryRow(ctx, `SELECT position,source_entry,status,matched_track,candidate_tracks,reason
+		FROM transfer_preview_entries WHERE preview_id=$1 AND position=$2 FOR UPDATE`, previewID, position).Scan(
+		&entry.Position, &sourceJSON, &status, &matchedJSON, &candidateJSON, &entry.Reason)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PreviewEntry{}, ErrPreviewEntryNotFound
+	}
+	if err != nil {
+		return PreviewEntry{}, err
+	}
+	entry.Status = MatchStatus(status)
+	if err := json.Unmarshal(sourceJSON, &entry.Source); err != nil {
+		return PreviewEntry{}, err
+	}
+	if err := json.Unmarshal(candidateJSON, &entry.Candidates); err != nil {
+		return PreviewEntry{}, err
+	}
+	if entry.Status != MatchStatusAmbiguous {
+		return PreviewEntry{}, ErrMatchNotResolvable
+	}
+	selected, ok := selectCandidate(entry.Candidates, provider, providerID)
+	if !ok {
+		return PreviewEntry{}, ErrInvalidMatchCandidate
+	}
+	selectedJSON, err := json.Marshal(selected)
+	if err != nil {
+		return PreviewEntry{}, err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO transfer_match_decisions
+		(preview_id,position,session_hash,destination_provider,selected_track)
+		VALUES ($1,$2,$3,$4,$5)
+		ON CONFLICT (preview_id,position) DO UPDATE SET
+		destination_provider=excluded.destination_provider,
+		selected_track=excluded.selected_track,updated_at=now()`,
+		previewID, position, hash, destinationProvider, selectedJSON); err != nil {
+		return PreviewEntry{}, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE transfer_preview_entries SET status=$3,matched_track=$4,reason=$5
+		WHERE preview_id=$1 AND position=$2`, previewID, position, MatchStatusMatched, selectedJSON, "manual_match"); err != nil {
+		return PreviewEntry{}, err
+	}
+	entry.Status = MatchStatusMatched
+	entry.Reason = "manual_match"
+	entry.Matched = &selected
+	if err := tx.Commit(ctx); err != nil {
+		return PreviewEntry{}, err
+	}
+	return entry, nil
+}
+
+func selectCandidate(candidates []Track, provider, providerID string) (Track, bool) {
+	for _, candidate := range candidates {
+		if candidate.Provider == provider && candidate.ID == providerID {
+			return candidate, true
+		}
+	}
+	return Track{}, false
 }
 
 func (s *Store) EnqueueRun(ctx context.Context, queue *river.Client[pgx.Tx], hash, previewID string) (TransferRunStatus, error) {

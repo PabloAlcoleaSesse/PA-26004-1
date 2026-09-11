@@ -11,11 +11,18 @@ import (
 )
 
 var ErrInvalidProvider = errors.New("invalid_provider")
+var ErrInvalidSchedule = errors.New("invalid_schedule")
 
 type Service struct {
 	store     *Store
 	providers map[string]Provider
+	queue     *river.Client[pgx.Tx]
 }
+
+// SetQueue supplies the worker with the shared River client. It is set before
+// workers start; keeping it on the service lets a completed recurring sync
+// atomically enqueue its next run with its database state.
+func (s *Service) SetQueue(queue *river.Client[pgx.Tx]) { s.queue = queue }
 
 func NewService(store *Store, providers ...Provider) *Service {
 	index := make(map[string]Provider, len(providers))
@@ -82,6 +89,10 @@ func matchingKey(track Track) string {
 
 func (s *Service) Preview(ctx context.Context, hash, previewID string, offset, limit int) (TransferPreview, error) {
 	return s.store.LoadPreview(ctx, hash, previewID, offset, limit)
+}
+
+func (s *Service) ResolveMatch(ctx context.Context, hash, previewID string, position int, provider, providerID string) (PreviewEntry, error) {
+	return s.store.ResolveMatch(ctx, hash, previewID, position, provider, providerID)
 }
 
 func (s *Service) EnqueueRun(ctx context.Context, queue *river.Client[pgx.Tx], hash, previewID string) (TransferRunStatus, error) {

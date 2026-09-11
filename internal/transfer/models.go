@@ -63,6 +63,17 @@ type PreviewEntry struct {
 	Reason     string        `json:"reason,omitempty"`
 }
 
+// MatchDecision records the destination candidate selected by the user for a
+// preview entry that could not be resolved with sufficient confidence.
+type MatchDecision struct {
+	PreviewID           string    `json:"preview_id"`
+	Position            int       `json:"position"`
+	DestinationProvider string    `json:"destination_provider"`
+	Selected            Track     `json:"selected"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
+}
+
 type TransferRunStatus struct {
 	ID                    string    `json:"id"`
 	PreviewID             string    `json:"preview_id"`
