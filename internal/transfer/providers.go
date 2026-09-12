@@ -242,10 +242,3 @@ func mapAppleError(err error) error {
 	}
 	return fmt.Errorf("apple_music: %w", err)
 }
-
-func (entry PlaylistEntry) TrackValue() Track {
-	if entry.Track == nil {
-		return Track{}
-	}
-	return *entry.Track
-}

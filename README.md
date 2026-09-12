@@ -6,7 +6,7 @@ Save your collection, transfer playlists between services, and keep them in sync
 
 ## Project status
 
-Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify and Apple Music OAuth or MusicKit connections, encrypted credentials, playlist pagination, ordered snapshot imports, transfer previews, and destination playlist writes are implemented. Cross-service synchronization and a separate application-user system are not implemented yet. See [Spotify setup](docs/spotify.md) for provider configuration.
+Go backend with an HTTP API, River worker, PostgreSQL migrations, and optional Spotify and Apple Music connections. Spotify and Apple Music OAuth or MusicKit connections, encrypted credentials, playlist pagination, ordered imports, persistent application identity, a provider-neutral library catalog, transfer previews, destination playlist writes, and initial Spotify taste summaries are implemented. Broader cross-service analytics and sound-based recommendations remain on the roadmap. See [Spotify setup](docs/spotify.md) for provider configuration.
 
 ## Vision
 
@@ -20,9 +20,15 @@ Transfers refer to recreating library entries and playlists in a destination ser
 
 ## Roadmap
 
-- [ ] Define the first two music services and investigate integration capabilities.
+- [x] Define the first two music services and investigate integration capabilities.
 - [x] Establish the Go, PostgreSQL, and River application foundation.
-- [ ] Design a shared music-library model around the first two integrations.
+- [x] Design a shared music-library model around the first two integrations.
+- [x] Publish completed Spotify snapshots into the session-scoped library catalog.
+- [x] Queue Apple Music playlist imports into the shared library catalog.
+- [x] Persist application users and link connected provider accounts.
+- [x] Add one-way, queued playlist synchronization with safe destination reconciliation.
+- [x] Expose session-scoped catalog coverage statistics.
+- [x] Import Spotify recently-played events and expose taste summaries.
 - [x] Implement Spotify account connection with encrypted credentials.
 - [x] Add Apple Music connection and playlist listing through MusicKit user tokens.
 - [ ] Verify a live Spotify connection with developer-app credentials and consent.
@@ -30,11 +36,17 @@ Transfers refer to recreating library entries and playlists in a destination ser
 - [x] Match tracks across services and preview a playlist transfer.
 - [x] Execute Spotify destination playlist creation and track mutations.
 - [x] Execute Apple Music destination playlist creation and track mutations.
-- [ ] Add opt-in playlist synchronization with conflict handling.
-- [ ] Add music-taste statistics using available data.
+- [x] Add opt-in playlist synchronization with conflict handling.
+- [x] Add initial music-taste statistics using available data.
 - [ ] Explore sound-based recommendations and evaluate their quality.
 
 ## Development
+
+Shared provider track, playlist, ordered-entry, and operation contracts live in
+`internal/music`. Transfer planning uses these types through compatibility aliases;
+the library catalog keeps its own persisted IDs and timestamps. Matching scopes
+candidate IDs to the destination provider and requires nonblank identifiers before
+using an identifier match. See [the shared music contract](docs/architecture.md#shared-music-contract).
 
 ### Run with Docker
 
@@ -100,9 +112,11 @@ GitHub Actions runs the Go checks on pushes and pull requests. The container smo
 | `APPLE_PRIVATE_KEY` | Required when enabled | PKCS#8 ES256 private key PEM |
 | `PUBLIC_ORIGIN` | `http://127.0.0.1:8080` | Origin allowed for Apple Music mutations |
 
-`GET /healthz` reports whether the HTTP process is alive. `GET /readyz` checks database connectivity and access to the River and Spotify tables, returning `503` when unavailable. Neither endpoint establishes that the separate worker is running; use the probe command for that.
+`GET /healthz` reports whether the HTTP process is alive. `GET /readyz` checks database connectivity and access to the River, provider, catalog, identity, and sync tables, returning `503` when unavailable. Neither endpoint establishes that the separate worker is running; use the probe command for that.
 
-See [the architecture notes](docs/architecture.md) for module boundaries and the next implementation steps.
+The API emits one JSON request event per HTTP request. Each response includes an `X-Request-ID` correlation header; logs include the method, route path, status, response size, and duration while omitting query strings and headers so credentials are not copied into logs. Store these logs in your deployment platform and retain them according to your operational policy.
+
+See [the API contract](docs/api.md) and [the architecture notes](docs/architecture.md) for endpoint behavior, module boundaries, and implementation steps.
 
 ### Web UI
 

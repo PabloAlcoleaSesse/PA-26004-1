@@ -2,7 +2,7 @@
 
 ## What is implemented
 
-The API supports Spotify OAuth with PKCE, encrypted credential storage, automatic refresh when checking the connection, and local disconnect. It requests playlist read and modification scopes so it can import playlists and create private destination playlists. Scheduled cross-service sync is not implemented yet.
+The API supports Spotify OAuth with PKCE, encrypted credential storage, automatic refresh when checking the connection, and local disconnect. It requests playlist read, modification, and `user-read-recently-played` scopes so it can import playlists, recent listening events, and create private destination playlists. Connected accounts are linked to a persistent application user. One-way synchronization is available through the shared `/api/syncs` API. Existing connections must reconnect once to grant the additional history scope.
 
 Spotify authorization establishes a browser session for this first integration. There is no separate application user/login system yet. Each browser connection is independent; a second browser must authorize separately.
 
@@ -101,7 +101,7 @@ An absent/expired session or revoked grant returns `401`; Spotify access denial 
 
 Authorization attempts are held in a bounded in-memory map, so a restart requires restarting any pending authorization. Run one API instance for the current OAuth flow; distributed attempt storage is required before scaling it across instances. Established connections survive API restarts with the same encryption key. Losing/changing the key requires reconnecting. Expired rows are removed on the next successful connection; periodic cleanup and key rotation are future work.
 
-A provider token refresh and a database commit cannot be atomic. If the process or database fails after Spotify rotates a token, reconnecting may be necessary. The current implementation also treats the browser session as the connection owner; a persistent application-user model must precede unattended multi-provider sync.
+ A provider token refresh and a database commit cannot be atomic. If the process or database fails after Spotify rotates a token, reconnecting may be necessary. Unattended multi-provider sync still requires explicit conflict policy and destination reconciliation.
 
 ## Verification
 

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/identity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -74,6 +75,9 @@ func (s *PostgresStore) Save(ctx context.Context, hash, old string, c Connection
 	if _, e = tx.Exec(ctx, "INSERT INTO apple_connections(session_hash,encrypted_credentials,expires_at) VALUES($1,$2,$3)", hash, b, expires); e != nil {
 		return e
 	}
+	if e = identity.LinkProviderTx(ctx, tx, hash, old, "apple-music", identity.Fingerprint(c.UserToken), expires); e != nil {
+		return e
+	}
 	return tx.Commit(ctx)
 }
 func (s *PostgresStore) Load(ctx context.Context, hash string) (Connection, error) {
@@ -88,6 +92,17 @@ func (s *PostgresStore) Load(ctx context.Context, hash string) (Connection, erro
 	return s.open(hash, b)
 }
 func (s *PostgresStore) Delete(ctx context.Context, hash string) error {
-	_, e := s.pool.Exec(ctx, "DELETE FROM apple_connections WHERE session_hash=$1", hash)
-	return e
+	tx, e := s.pool.Begin(ctx)
+	if e != nil {
+		return e
+	}
+	defer tx.Rollback(context.Background())
+	if _, e = tx.Exec(ctx, "DELETE FROM apple_connections WHERE session_hash=$1", hash); e != nil {
+		return e
+	}
+	if _, e = tx.Exec(ctx, `DELETE FROM provider_accounts pa USING user_sessions us
+		WHERE us.session_hash=$1 AND pa.user_id=us.user_id AND pa.provider='apple-music'`, hash); e != nil {
+		return e
+	}
+	return tx.Commit(ctx)
 }

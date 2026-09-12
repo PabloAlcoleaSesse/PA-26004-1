@@ -7,6 +7,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/library"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -225,6 +226,21 @@ func (i *Importer) saveSnapshot(ctx context.Context, id, hash string, playlist P
 		return err
 	}
 	if _, err := tx.Exec(ctx, "UPDATE spotify_imports SET error_code = '' WHERE id = $1", id); err != nil {
+		return err
+	}
+	catalogEntries := make([]library.SnapshotEntry, 0, len(entries))
+	for _, entry := range entries {
+		artists := make([]string, 0, len(entry.Artists))
+		for _, artist := range entry.Artists {
+			artists = append(artists, artist.Name)
+		}
+		catalogEntries = append(catalogEntries, library.SnapshotEntry{
+			Position: entry.Position, ProviderID: entry.ID, Name: entry.Name, Artists: artists,
+			Album: entry.Album, DurationMS: entry.DurationMS, ISRC: entry.ISRC,
+			URL: entry.SpotifyURL, Unavailable: entry.Unavailable, Unsupported: entry.Unsupported, Raw: entry,
+		})
+	}
+	if err := library.SyncSpotifySnapshotTx(ctx, tx, hash, playlist.ID, playlist.Name, playlist.ExternalURLs.Spotify, catalogEntries); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

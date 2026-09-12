@@ -13,7 +13,9 @@ import (
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/applemusic"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/config"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/httpapi"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/identity"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/jobs"
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/library"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/platform"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/spotify"
 	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/transfer"
@@ -55,6 +57,12 @@ func run(logger *slog.Logger) error {
 			"SELECT session_hash FROM spotify_connections LIMIT 0",
 			"SELECT import_id FROM spotify_snapshots LIMIT 0",
 			"SELECT id FROM transfer_previews LIMIT 0",
+			"SELECT id FROM library_playlists LIMIT 0",
+			"SELECT id FROM apple_imports LIMIT 0",
+			"SELECT id FROM app_users LIMIT 0",
+			"SELECT id FROM sync_requests LIMIT 0",
+			"SELECT id FROM listening_events LIMIT 0",
+			"SELECT id FROM listening_imports LIMIT 0",
 		} {
 			if _, err := pool.Exec(ctx, query); err != nil {
 				return err
@@ -64,6 +72,8 @@ func run(logger *slog.Logger) error {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/", httpapi.NewHandler(ready))
+	library.RegisterHTTP(mux, library.NewStore(pool))
+	identity.RegisterHTTP(mux, identity.NewStore(pool))
 
 	origin := os.Getenv("PUBLIC_ORIGIN")
 	if origin == "" {
@@ -73,6 +83,8 @@ func run(logger *slog.Logger) error {
 	var register []func(*river.Workers)
 	var spotifyAuth *spotify.Auth
 	var spotifyImporter *spotify.Importer
+	var spotifyListening *spotify.ListeningImporter
+	var appleImporter *applemusic.Importer
 	var transferService *transfer.Service
 	transferProviders := []transfer.Provider{}
 
@@ -83,9 +95,11 @@ func run(logger *slog.Logger) error {
 		}
 		client := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
 		spotifyImporter = spotify.NewImporter(pool, store, client)
+		spotifyListening = spotify.NewListeningImporter(pool, store, client)
 		spotifyAuth = spotify.NewAuth(client, store)
 		spotifyAuth.Register(mux)
 		register = append(register, spotifyImporter.Register)
+		register = append(register, spotifyListening.Register)
 		transferProviders = append(transferProviders, transfer.NewSpotifyProvider(client, store))
 		logger.Info("Spotify connection enabled")
 	} else {
@@ -105,26 +119,38 @@ func run(logger *slog.Logger) error {
 			return err
 		}
 		client.Register(mux, store, origin)
+		appleImporter = applemusic.NewImporter(pool, store, client)
+		register = append(register, appleImporter.Register)
 		transferProviders = append(transferProviders, transfer.NewAppleMusicProvider(client, store))
 		logger.Info("Apple Music connection enabled")
 	}
 
-	if spotifyImporter != nil {
-		if len(transferProviders) > 0 {
-			transferService = transfer.NewService(transfer.NewStore(pool), transferProviders...)
-			register = append(register, transferService.Register)
-		}
+	if len(transferProviders) > 0 {
+		transferService = transfer.NewService(transfer.NewStore(pool), transferProviders...)
+		register = append(register, transferService.Register)
+		register = append(register, transferService.RegisterSync)
+	}
+	if len(register) > 0 {
 		queue, err := jobs.NewClient(pool, logger, 0, register...)
 		if err != nil {
 			return err
 		}
-		spotifyAuth.RegisterImports(mux, spotifyImporter, queue)
+		if transferService != nil {
+			transferService.SetQueue(queue)
+		}
+		if spotifyAuth != nil && spotifyImporter != nil {
+			spotifyAuth.RegisterImports(mux, spotifyImporter, queue)
+			spotifyAuth.RegisterListening(mux, spotifyListening, queue)
+		}
+		if appleImporter != nil {
+			applemusic.RegisterImports(mux, appleImporter, queue)
+		}
 		if transferService != nil {
 			transfer.RegisterHTTP(mux, transferService, queue, origin)
 		}
 	}
 
-	server := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
+	server := &http.Server{Addr: cfg.HTTPAddr, Handler: httpapi.LoggingHandler(mux, logger), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 16 << 10}
 	errs := make(chan error, 1)
 	go func() { errs <- server.ListenAndServe() }()
 	logger.Info("api starting", "address", cfg.HTTPAddr)
