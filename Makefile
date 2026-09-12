@@ -1,7 +1,7 @@
-.PHONY: help build fmt fmt-check vet test check up down logs migrate api worker probe
+.PHONY: help build fmt fmt-check vet test check up down logs migrate api worker probe ui-install ui-dev ui-build ui-start
 
 help:
-	@echo "Targets: build fmt check up down logs migrate api worker probe"
+	@echo "Targets: build fmt check up down logs migrate api worker probe ui-install ui-dev ui-build ui-start"
 
 build:
 	go build -trimpath -o bin/api ./cmd/api
@@ -42,3 +42,15 @@ worker:
 
 probe:
 	go run ./cmd/admin probe
+
+ui-install:
+	npm --prefix web ci
+
+ui-dev:
+	npm --prefix web run dev
+
+ui-build:
+	npm --prefix web run build
+
+ui-start:
+	npm --prefix web run start

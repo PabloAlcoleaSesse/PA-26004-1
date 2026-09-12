@@ -4,7 +4,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY app ./app
-COPY src ./src
 COPY react-router.config.js vite.config.js ./
 RUN npm run build
 

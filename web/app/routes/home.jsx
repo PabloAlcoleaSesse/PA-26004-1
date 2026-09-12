@@ -11,7 +11,7 @@ const activity = [
   { title: 'Sunday reset', detail: 'Spotify → Apple Music', time: 'Mar 18, 12:32', count: '16 tracks', tone: 'orange' },
 ];
 
-function App() {
+function Home() {
   const [source, setSource] = useState('spotify');
   const [destination, setDestination] = useState('apple-music');
   const [activeView, setActiveView] = useState('Overview');
@@ -159,4 +159,4 @@ function ChevronIcon() { return <svg viewBox="0 0 24 24"><path d="m7 9 5 5 5-5" 
 function BellIcon() { return <svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Zm-8.5 13h5" /></svg>; }
 function LockIcon() { return <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>; }
 
-export default App;
+export default Home;

@@ -48,6 +48,22 @@ the library catalog keeps its own persisted IDs and timestamps. Matching scopes
 candidate IDs to the destination provider and requires nonblank identifiers before
 using an identifier match. See [the shared music contract](docs/architecture.md#shared-music-contract).
 
+### Repository layout
+
+```text
+cmd/          Go entry points: API, worker, admin
+internal/     Backend packages, provider adapters, and embedded migrations
+web/          React Router frontend, npm dependencies, and UI Dockerfile
+  app/        Routes, root layout, and styles
+  app/routes/ Page components (currently the demo dashboard)
+docs/         API contracts, architecture, and provider setup
+```
+
+The root Go module and Dockerfile build the backend. `compose.yaml` runs the
+services together; the Makefile provides commands for both backend and frontend.
+See [package responsibilities](docs/architecture.md#repository-layout) before
+adding a new module.
+
 ### Run with Docker
 
 Requires Docker with Compose v2 or newer. From the repository root:
@@ -94,7 +110,7 @@ make check
 
 Checks formatting, runs `go vet`, runs tests with the race detector, and builds `bin/api`, `bin/worker`, and `bin/admin`. These checks use simulated provider clients and do not start containers or contact Spotify/Apple Music. PostgreSQL integration tests are opt-in through `TEST_DATABASE_URL`; see [verification](docs/spotify.md#verification).
 
-GitHub Actions runs the Go checks on pushes and pull requests. The container smoke test runs only when manually dispatching CI with `container_smoke` enabled.
+GitHub Actions runs the Go checks and a separate UI production build on pushes to `main` and pull requests. For frontend changes, also run `make ui-build` locally after `make ui-install`. The container smoke test runs only when manually dispatching CI with `container_smoke` enabled.
 
 ### Configuration
 
@@ -120,14 +136,14 @@ See [the API contract](docs/api.md) and [the architecture notes](docs/architectu
 
 ### Web UI
 
-The `ui/react-dashboard` branch contains the React Router Framework Mode UI. It uses the current React Router framework toolchain for route-based screens, pending states, and future data loaders while the Go API remains the system of record.
+The `web/` directory contains the React Router Framework Mode UI. It requires Node.js 22.22.0 or newer. It uses the current React Router framework toolchain for route-based screens, pending states, and future data loaders while the Go API remains the system of record.
 
 ```sh
-npm install
-npm run dev
+make ui-install
+make ui-dev
 ```
 
-The production build uses `npm run build`; `npm run start` serves the generated framework output. The UI currently presents the transfer workspace with local demo data. API loaders and actions will be connected as the authenticated application-user flow is added.
+Run these commands from the repository root. The production build uses `make ui-build`; `make ui-start` serves the generated framework output. You can also run the npm scripts directly inside `web/`. The UI currently presents the transfer workspace with local demo data. API loaders and actions will be connected as the authenticated application-user flow is added.
 
 Ideas and contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 

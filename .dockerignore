@@ -14,3 +14,4 @@ coverage*
 credentials.json
 token.json
 tokens.json
+web/

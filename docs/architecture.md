@@ -1,5 +1,33 @@
 # Architecture
 
+## Repository layout
+
+The root is a single Go module. The frontend is a separate npm project in `web/`,
+with its own lockfile, build configuration, and Dockerfile. Compose connects the
+services using the backend build context at the root and the UI context at `web/`.
+Frontend routes and styles live together under `web/app/`; `root.jsx` owns the
+HTML document and `routes/home.jsx` owns the current demo dashboard.
+
+| Location | Responsibility |
+| --- | --- |
+| `cmd/` | Wire dependencies and start the API, worker, or admin process |
+| `internal/music` | Provider-neutral models and operation contracts |
+| `internal/library` | Persisted catalog and imported playlist projections |
+| `internal/transfer` | Matching, previews, execution, and sync orchestration |
+| `internal/spotify`, `internal/applemusic` | Provider authentication, API clients, and imports |
+| `internal/identity` | Application users and provider account links |
+| `internal/httpapi` | HTTP routing, shared middleware, and request logging |
+| `internal/config` | Environment configuration and validation |
+| `internal/platform` | Database setup and embedded, checksummed migrations |
+| `internal/jobs` | Shared River queue setup and diagnostic jobs |
+| `web/app` | Frontend routes, document layout, and styles |
+| `docs/` | API contracts, architecture, and operational guides |
+
+Keep provider details in their adapter packages and shared music contracts free
+of storage and HTTP dependencies. Catalog IDs identify local records; provider
+IDs identify remote resources. The frontend currently uses demo data; moving it
+under `web/` does not connect it to the API.
+
 ## Current foundation
 
 One Go module contains three executable commands:
