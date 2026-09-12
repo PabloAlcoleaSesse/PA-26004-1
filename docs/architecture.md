@@ -38,7 +38,35 @@ One-way playlist synchronization is queued through `POST /api/syncs` and monitor
 
 Application identity is stored separately from provider credentials. Successful provider connection rotations create or reuse an application user, move the session mapping, and link an opaque provider account identifier in the same transaction as the encrypted connection. `GET /api/me` returns the durable user ID and linked provider names without exposing account tokens or token fingerprints.
 
-Keep matching and transfer planning independent of provider HTTP clients so their rules can be tested with fixtures. Introduce shared track and playlist types as the first integrations reveal the required fields.
+Keep matching and transfer planning independent of provider HTTP clients so their rules can be tested with fixtures.
+
+## Shared music contract
+
+`internal/music` owns provider-neutral tracks, playlists, playlist occurrences,
+pagination results, search queries, and the provider operation interface. It has no
+dependency on provider HTTP clients, storage, or transfer orchestration.
+`internal/transfer` retains aliases for existing callers and persisted JSON formats.
+The `internal/library` catalog projection remains distinct: its IDs identify local
+database records, while music track and playlist IDs identify provider resources.
+
+Playlist entries represent occurrences, so positions, repeated tracks, unavailable
+entries, and unsupported entries survive conversion. A missing track is represented
+by a nil track, not by deleting its occurrence. Provider IDs remain scoped to their
+provider; adapters must supply the candidate's provider and ID. Matching rejects
+candidates from another provider, and blank ISRC values cannot establish an exact
+match. An authoritative ID for the source's own provider can also come from its
+primary provider and ID fields.
+
+The shared provider interface covers listing playlists, reading entries, searching,
+creating playlists, and appending tracks. Implementations propagate context and
+report unsupported operations through `ErrUnsupportedOperation`; rate limiting uses
+`RateLimitError`. These contracts do not grant capabilities to an integration or
+change provider API calls. No database migration is required for this extraction.
+
+Follow-up reliability work remains in the existing adapters and orchestration:
+reject repeated or backward pagination offsets, validate Spotify entry-page bounds
+before slicing, and fail reconciliation when an occupied destination position has
+no track metadata. The shared contract extraction does not fix these cases.
 
 ## Sync reliability
 

@@ -42,6 +42,12 @@ Transfers refer to recreating library entries and playlists in a destination ser
 
 ## Development
 
+Shared provider track, playlist, ordered-entry, and operation contracts live in
+`internal/music`. Transfer planning uses these types through compatibility aliases;
+the library catalog keeps its own persisted IDs and timestamps. Matching scopes
+candidate IDs to the destination provider and requires nonblank identifiers before
+using an identifier match. See [the shared music contract](docs/architecture.md#shared-music-contract).
+
 ### Run with Docker
 
 Requires Docker with Compose v2 or newer. From the repository root:
