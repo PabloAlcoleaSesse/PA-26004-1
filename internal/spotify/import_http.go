@@ -95,6 +95,48 @@ func (a *Auth) RegisterImports(mux *http.ServeMux, importer *Importer, queue *ri
 	}))
 }
 
+// RegisterListening exposes a bounded, asynchronous recently-played import.
+func (a *Auth) RegisterListening(mux *http.ServeMux, importer *ListeningImporter, queue *river.Client[pgx.Tx]) {
+	mux.HandleFunc("POST /api/spotify/listening-imports", a.wrap(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Origin") != a.origin {
+			http.Error(w, "Origin not allowed", http.StatusForbidden)
+			return
+		}
+		hash, ok := a.session(w, r)
+		if !ok {
+			return
+		}
+		status, err := importer.Enqueue(r.Context(), queue, hash)
+		if errors.Is(err, ErrNoConnection) {
+			a.failure(w, err)
+			return
+		}
+		if err != nil {
+			http.Error(w, "Could not queue listening import", http.StatusInternalServerError)
+			return
+		}
+		location := "/api/spotify/listening-imports/" + status.ID
+		w.Header().Set("Location", location)
+		writeJSON(w, http.StatusAccepted, map[string]string{"import_id": status.ID, "status_url": location})
+	}))
+	mux.HandleFunc("GET /api/spotify/listening-imports/{id}", a.wrap(func(w http.ResponseWriter, r *http.Request) {
+		hash, ok := a.session(w, r)
+		if !ok {
+			return
+		}
+		status, err := importer.Status(r.Context(), hash, r.PathValue("id"))
+		if errors.Is(err, ErrListeningImportNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			http.Error(w, "Could not read listening import", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+	}))
+}
+
 func (a *Auth) session(w http.ResponseWriter, r *http.Request) (string, bool) {
 	cookie, err := r.Cookie(sessionCookie)
 	if err != nil || cookie.Value == "" {

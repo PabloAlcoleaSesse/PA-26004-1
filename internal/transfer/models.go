@@ -1,10 +1,14 @@
 package transfer
 
-import "time"
+import (
+	"time"
+
+	"github.com/PabloAlcoleaSesse/PA-26004-1/internal/music"
+)
 
 const (
-	ProviderSpotify    = "spotify"
-	ProviderAppleMusic = "apple-music"
+	ProviderSpotify    = music.ProviderSpotify
+	ProviderAppleMusic = music.ProviderAppleMusic
 )
 
 type MatchStatus string
@@ -16,34 +20,10 @@ const (
 	MatchStatusUnsupported MatchStatus = "unsupported"
 )
 
-type Track struct {
-	Provider    string            `json:"provider"`
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Artists     []string          `json:"artists"`
-	Album       string            `json:"album,omitempty"`
-	DurationMS  int               `json:"duration_ms,omitempty"`
-	ISRC        string            `json:"isrc,omitempty"`
-	ProviderIDs map[string]string `json:"provider_ids,omitempty"`
-	URL         string            `json:"url,omitempty"`
-}
-
-type Playlist struct {
-	Provider   string `json:"provider"`
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	URL        string `json:"url,omitempty"`
-	SnapshotID string `json:"snapshot_id,omitempty"`
-}
-
-type PlaylistEntry struct {
-	Position    int       `json:"position"`
-	Track       *Track    `json:"track,omitempty"`
-	AddedAt     *string   `json:"added_at,omitempty"`
-	Unavailable bool      `json:"unavailable"`
-	Unsupported bool      `json:"unsupported"`
-	CapturedAt  time.Time `json:"captured_at,omitempty"`
-}
+// Shared aliases preserve the existing transfer API and persisted JSON shapes.
+type Track = music.Track
+type Playlist = music.Playlist
+type PlaylistEntry = music.PlaylistEntry
 
 type TransferPreview struct {
 	ID                  string         `json:"id"`
@@ -61,6 +41,17 @@ type PreviewEntry struct {
 	Matched    *Track        `json:"matched,omitempty"`
 	Candidates []Track       `json:"candidates,omitempty"`
 	Reason     string        `json:"reason,omitempty"`
+}
+
+// MatchDecision records the destination candidate selected by the user for a
+// preview entry that could not be resolved with sufficient confidence.
+type MatchDecision struct {
+	PreviewID           string    `json:"preview_id"`
+	Position            int       `json:"position"`
+	DestinationProvider string    `json:"destination_provider"`
+	Selected            Track     `json:"selected"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 type TransferRunStatus struct {

@@ -72,7 +72,7 @@ func (c *Client) AuthorizationURL(state, challenge string) string {
 		"response_type": {"code"}, "state": {state},
 		"code_challenge_method": {"S256"}, "code_challenge": {challenge},
 		// Modification permissions are required for destination playlist transfers.
-		"scope": {"playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public"},
+		"scope": {"playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public user-read-recently-played"},
 	}
 	return c.authorizeURL + "?" + q.Encode()
 }

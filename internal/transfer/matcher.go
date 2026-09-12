@@ -33,17 +33,24 @@ func MatchTrack(source PlaylistEntry, destinationProvider string, candidates []T
 	if source.Unsupported || source.Unavailable || source.Track == nil {
 		return MatchResult{Status: MatchStatusUnsupported, Reason: "source_entry_unsupported"}
 	}
-	unique := uniqueTracks(candidates)
+	// Candidate IDs are meaningful only within their provider. Filter before
+	// deduplication so an unrelated provider cannot shadow a destination track.
+	unique := uniqueTracks(filterTracks(candidates, func(t Track) bool {
+		return destinationProvider != "" && t.Provider == destinationProvider
+	}))
 	if len(unique) == 0 {
 		return MatchResult{Status: MatchStatusMissing, Reason: "no_candidates"}
 	}
-	if id := strings.TrimSpace(source.Track.ProviderIDs[destinationProvider]); id != "" {
+	id := source.Track.ProviderIDs[destinationProvider]
+	if strings.TrimSpace(id) == "" && source.Track.Provider == destinationProvider {
+		id = source.Track.ID
+	}
+	if strings.TrimSpace(id) != "" {
 		if matched := filterTracks(unique, func(t Track) bool { return t.ID == id || t.ProviderIDs[destinationProvider] == id }); len(matched) > 0 {
 			return resolveSingle("provider_id", matched)
 		}
 	}
-	if source.Track.ISRC != "" {
-		norm := strings.ToUpper(strings.TrimSpace(source.Track.ISRC))
+	if norm := strings.ToUpper(strings.TrimSpace(source.Track.ISRC)); norm != "" {
 		if matched := filterTracks(unique, func(t Track) bool { return strings.ToUpper(strings.TrimSpace(t.ISRC)) == norm }); len(matched) > 0 {
 			return resolveSingle("isrc", matched)
 		}
@@ -92,7 +99,7 @@ func uniqueTracks(in []Track) []Track {
 	seen := map[string]bool{}
 	out := make([]Track, 0, len(in))
 	for _, track := range in {
-		if track.ID == "" || seen[track.ID] {
+		if strings.TrimSpace(track.ID) == "" || seen[track.ID] {
 			continue
 		}
 		seen[track.ID] = true

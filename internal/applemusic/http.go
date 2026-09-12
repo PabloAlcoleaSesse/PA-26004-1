@@ -8,6 +8,9 @@ import (
 	"errors"
 	"net/http"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
 // Register exposes a small server-side bridge for MusicKit user tokens. Apple
@@ -80,6 +83,52 @@ func (c *Client) Register(mux *http.ServeMux, store Store, origin string) {
 		}
 		http.SetCookie(w, &http.Cookie{Name: "music_session", Value: "", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: r.TLS != nil})
 		w.WriteHeader(204)
+	})
+}
+
+// RegisterImports exposes queued playlist catalog imports. The queue payload
+// contains only an opaque import ID; MusicKit credentials stay encrypted.
+func RegisterImports(mux *http.ServeMux, importer *Importer, queue *river.Client[pgx.Tx]) {
+	mux.HandleFunc("POST /api/apple-music/imports", func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("music_session")
+		if err != nil {
+			http.Error(w, "Connect Apple Music first", http.StatusUnauthorized)
+			return
+		}
+		var input struct {
+			PlaylistID string `json:"playlist_id"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&input); err != nil || input.PlaylistID == "" {
+			http.Error(w, "playlist_id is required", http.StatusBadRequest)
+			return
+		}
+		id, err := importer.Enqueue(r.Context(), queue, hashSession(cookie.Value), input.PlaylistID)
+		if errors.Is(err, ErrNoConnection) {
+			http.Error(w, "Connect Apple Music first", http.StatusUnauthorized)
+			return
+		}
+		if err != nil {
+			http.Error(w, "Could not queue Apple Music import", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]string{"id": id, "state": "queued"})
+	})
+	mux.HandleFunc("GET /api/apple-music/imports/{id}", func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("music_session")
+		if err != nil {
+			http.Error(w, "Connect Apple Music first", http.StatusUnauthorized)
+			return
+		}
+		status, err := importer.Status(r.Context(), hashSession(cookie.Value), r.PathValue("id"))
+		if errors.Is(err, ErrImportNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			http.Error(w, "Could not load Apple Music import", http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
 	})
 }
 

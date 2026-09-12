@@ -48,6 +48,7 @@ func run(logger *slog.Logger) error {
 	defer pool.Close()
 	register := []func(*river.Workers){}
 	transferProviders := []transfer.Provider{}
+	var transferService *transfer.Service
 	if spotifyConfig.ClientID != "" {
 		store, err := spotify.NewPostgresStore(pool, spotifyConfig.EncryptionKey)
 		if err != nil {
@@ -56,6 +57,8 @@ func run(logger *slog.Logger) error {
 		provider := spotify.NewClient(spotifyConfig.ClientID, spotifyConfig.RedirectURI)
 		importer := spotify.NewImporter(pool, store, provider)
 		register = append(register, importer.Register)
+		listening := spotify.NewListeningImporter(pool, store, provider)
+		register = append(register, listening.Register)
 		transferProviders = append(transferProviders, transfer.NewSpotifyProvider(provider, store))
 	}
 	if appleConfig.TeamID != "" {
@@ -71,15 +74,21 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return err
 		}
+		importer := applemusic.NewImporter(pool, store, provider)
+		register = append(register, importer.Register)
 		transferProviders = append(transferProviders, transfer.NewAppleMusicProvider(provider, store))
 	}
 	if len(transferProviders) > 0 {
-		service := transfer.NewService(transfer.NewStore(pool), transferProviders...)
-		register = append(register, service.Register)
+		transferService = transfer.NewService(transfer.NewStore(pool), transferProviders...)
+		register = append(register, transferService.Register)
+		register = append(register, transferService.RegisterSync)
 	}
 	client, err := jobs.NewClient(pool, logger, cfg.WorkerConcurrency, register...)
 	if err != nil {
 		return err
+	}
+	if transferService != nil {
+		transferService.SetQueue(client)
 	}
 	workCtx, cancelWork := context.WithCancel(context.Background())
 	defer cancelWork()
